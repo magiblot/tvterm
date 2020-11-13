@@ -91,8 +91,8 @@ void TVTermApp::handleEvent(TEvent &event)
 void TVTermApp::newTerm()
 {
     TRect r = deskTop->getExtent();
-    VTermWindow *vt = new VTermWindow(r);
-    vt = (VTermWindow *) validView(vt);
+    TVTermWindow *vt = new TVTermWindow(r);
+    vt = (TVTermWindow *) validView(vt);
     if (vt)
         deskTop->insert(vt);
 }
@@ -105,13 +105,8 @@ void TVTermApp::changeDir()
 void TVTermApp::shell()
 {
     suspend();
-#if defined(__BORLANDC__) || defined(_WIN32)
-    cout << "Type EXIT to return..." << endl;
-    system(getenv( "COMSPEC"));
-#else
     cout << "The application has been stopped. You can return by entering 'fg'." << endl;
     raise(SIGTSTP);
-#endif
     resume();
     redraw();
 }

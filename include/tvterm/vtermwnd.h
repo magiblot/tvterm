@@ -4,10 +4,10 @@
 #define Uses_TWindow
 #include <tvision/tv.h>
 
-struct VTermWindow : public TWindow
+struct TVTermWindow : public TWindow
 {
 
-    VTermWindow(const TRect &bounds);
+    TVTermWindow(const TRect &bounds);
 
 };
 
