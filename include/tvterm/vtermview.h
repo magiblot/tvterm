@@ -21,6 +21,7 @@ struct TVTermAdapter
     int master_fd;
     PTYListener *listener;
     bool pending;
+    bool resizing;
 
     static const VTermScreenCallbacks callbacks;
 
@@ -30,6 +31,7 @@ struct TVTermAdapter
     void initTermios(struct termios &, struct winsize &) const;
 
     void read();
+    void setSize(int rows, int cols);
 
     int damage(VTermRect rect);
     int moverect(VTermRect dest, VTermRect src);
@@ -51,6 +53,7 @@ struct TVTermView : public TView
     TVTermView(const TRect &bounds, TVTermWindow &window);
 
     TScreenCell& at(int y, int x);
+    void changeBounds(const TRect& bounds) override;
 
 };
 

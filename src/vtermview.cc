@@ -28,6 +28,12 @@ inline TScreenCell& TVTermView::at(int y, int x)
     return owner->buffer[owner->size.x * (r.a.y + y) + (r.a.x + x)];
 }
 
+void TVTermView::changeBounds(const TRect& bounds)
+{
+    TView::changeBounds(bounds);
+    vterm.setSize(size.y, size.x);
+}
+
 const VTermScreenCallbacks TVTermAdapter::callbacks = {
     static_wrap<&TVTermAdapter::damage>,
     static_wrap<&TVTermAdapter::moverect>,
@@ -42,7 +48,8 @@ const VTermScreenCallbacks TVTermAdapter::callbacks = {
 TVTermAdapter::TVTermAdapter(TVTermView &view) :
     view(view),
     listener(nullptr),
-    pending(false)
+    pending(false),
+    resizing(false)
 {
     vt = vterm_new(view.size.y, view.size.x);
     vterm_set_utf8(vt, 1);
@@ -170,6 +177,16 @@ void TVTermAdapter::read()
     }
 }
 
+void TVTermAdapter::setSize(int rows, int cols)
+{
+    if (!resizing)
+    {
+        resizing = true;
+        vterm_set_size(vt, rows, cols);
+        resizing = false;
+    }
+}
+
 // These functions are inline because they may only be invoked from the
 // 'TVTermAdapter::callbacks' table, which contains references to functions
 // generated at compile time.
@@ -228,6 +245,18 @@ inline int TVTermAdapter::bell()
 
 inline int TVTermAdapter::resize(int rows, int cols)
 {
+    if (!resizing)
+    {
+        TPoint d = TPoint {cols, rows} - view.size;
+        if (d.x || d.y)
+        {
+            TRect r = view.window.getBounds();
+            r.b += d;
+            view.window.setBounds(r); // Triggers setSize() -> vterm_set_size() -> resize().
+        }
+    }
+    else
+        callbacks.damage({0, rows, 0, cols}, this);
     return 0;
 }
 
