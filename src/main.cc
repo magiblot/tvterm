@@ -1,10 +1,6 @@
-#include <tvterm/app.h>
+void tvterm_main(int argc, char **argv);
 
-int main()
+int main(int argc, char **argv)
 {
-    TVTermApp app;
-    TVTermApp::app = &app;
-    app.run();
-    TVTermApp::app = nullptr;
-    app.shutDown();
+    tvterm_main(argc, argv);
 }

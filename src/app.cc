@@ -19,6 +19,15 @@
 
 TVTermApp* TVTermApp::app;
 
+void tvterm_main(int, char**)
+{
+    TVTermApp app;
+    TVTermApp::app = &app;
+    app.run();
+    TVTermApp::app = nullptr;
+    app.shutDown();
+}
+
 TVTermApp::TVTermApp() :
     TProgInit( &TVTermApp::initStatusLine,
                &TVTermApp::initMenuBar,
