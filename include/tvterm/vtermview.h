@@ -4,8 +4,11 @@
 #define Uses_TView
 #include <tvision/tv.h>
 
+#include <sys/types.h>
+
 struct TVTermWindow;
 struct TVTermView;
+struct PTYListener;
 
 struct TVTermAdapter
 {
@@ -13,11 +16,16 @@ struct TVTermAdapter
     TVTermView &view;
     struct VTerm *vt;
     struct VTermScreen *vts;
+    pid_t child_pid;
+    int master_fd;
+    PTYListener *listener;
 
     static const VTermScreenCallbacks callbacks;
 
     TVTermAdapter(TVTermView &);
     ~TVTermAdapter();
+
+    void initTermios(struct termios &, struct winsize &) const;
 
     static int damage(VTermRect rect, void *user);
     static int moverect(VTermRect dest, VTermRect src, void *user);

@@ -17,9 +17,10 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 # Dependencies
 
 find_library(VTERM vterm)
+find_library(UTIL util)
 add_subdirectory(deps/tvision)
 
-target_link_libraries(${PROJECT_NAME} tvision ${VTERM})
+target_link_libraries(${PROJECT_NAME} tvision ${VTERM} ${UTIL})
 
 # Build optimization
 

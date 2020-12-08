@@ -18,4 +18,6 @@ ushort execDialog(TDialog *d)
     return cmCancel;
 }
 
+int fd_set_flags(int fd, int flags);
+
 #endif // TVTERM_UTIL_H
