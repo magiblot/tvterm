@@ -11,8 +11,10 @@
 #include <tvision/tv.h>
 
 #include <tvterm/app.h>
+#include <tvterm/cmds.h>
 #include <tvterm/util.h>
 #include <tvterm/vtermwnd.h>
+#include <tvterm/vtermview.h>
 
 #include <stdlib.h>
 #include <signal.h>
@@ -79,6 +81,8 @@ void TVTermApp::handleEvent(TEvent &event)
             {
                 case cmNewTerm: newTerm(); break;
                 case cmChangeDir: changeDir(); break;
+                case cmVTermReadable:
+                    ((TVTermAdapter *) event.message.infoPtr)->read(); break;
                 default:
                     handled = false;
                     break;

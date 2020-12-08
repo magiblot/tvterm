@@ -15,10 +15,12 @@ struct TVTermAdapter
 
     TVTermView &view;
     struct VTerm *vt;
+    struct VTermState *state;
     struct VTermScreen *vts;
     pid_t child_pid;
     int master_fd;
     PTYListener *listener;
+    bool pending;
 
     static const VTermScreenCallbacks callbacks;
 
@@ -27,14 +29,16 @@ struct TVTermAdapter
 
     void initTermios(struct termios &, struct winsize &) const;
 
-    static int damage(VTermRect rect, void *user);
-    static int moverect(VTermRect dest, VTermRect src, void *user);
-    static int movecursor(VTermPos pos, VTermPos oldpos, int visible, void *user);
-    static int settermprop(VTermProp prop, VTermValue *val, void *user);
-    static int bell(void *user);
-    static int resize(int rows, int cols, void *user);
-    static int sb_pushline(int cols, const VTermScreenCell *cells, void *user);
-    static int sb_popline(int cols, VTermScreenCell *cells, void *user);
+    void read();
+
+    int damage(VTermRect rect);
+    int moverect(VTermRect dest, VTermRect src);
+    int movecursor(VTermPos pos, VTermPos oldpos, int visible);
+    int settermprop(VTermProp prop, VTermValue *val);
+    int bell();
+    int resize(int rows, int cols);
+    int sb_pushline(int cols, const VTermScreenCell *cells);
+    int sb_popline(int cols, VTermScreenCell *cells);
 
 };
 
@@ -45,6 +49,8 @@ struct TVTermView : public TView
     TVTermAdapter vterm;
 
     TVTermView(const TRect &bounds, TVTermWindow &window);
+
+    TScreenCell& at(int y, int x);
 
 };
 

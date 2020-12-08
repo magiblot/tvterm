@@ -1,10 +1,15 @@
+#define Uses_TText
+#include <tvision/tv.h>
+
 #include <tvterm/vtermview.h>
 #include <tvterm/vtermwnd.h>
 #include <tvterm/ptylisten.h>
 #include <tvterm/vterm.h>
 #include <tvterm/pty.h>
+#include <tvterm/util.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 TVTermView::TVTermView(const TRect &bounds, TVTermWindow &window) :
     TView(bounds),
@@ -16,23 +21,34 @@ TVTermView::TVTermView(const TRect &bounds, TVTermWindow &window) :
     showCursor();
 }
 
+inline TScreenCell& TVTermView::at(int y, int x)
+{
+    // Temporary solution: draw directly on the owner's buffer.
+    TRect r = getBounds();
+    return owner->buffer[owner->size.x * (r.a.y + y) + (r.a.x + x)];
+}
+
 const VTermScreenCallbacks TVTermAdapter::callbacks = {
-    &damage,
-    &moverect,
-    &movecursor,
-    &settermprop,
-    &bell,
-    &resize,
-    &sb_pushline,
-    &sb_popline,
+    static_wrap<&TVTermAdapter::damage>,
+    static_wrap<&TVTermAdapter::moverect>,
+    static_wrap<&TVTermAdapter::movecursor>,
+    static_wrap<&TVTermAdapter::settermprop>,
+    static_wrap<&TVTermAdapter::bell>,
+    static_wrap<&TVTermAdapter::resize>,
+    static_wrap<&TVTermAdapter::sb_pushline>,
+    static_wrap<&TVTermAdapter::sb_popline>,
 };
 
 TVTermAdapter::TVTermAdapter(TVTermView &view) :
     view(view),
-    listener(nullptr)
+    listener(nullptr),
+    pending(false)
 {
     vt = vterm_new(view.size.y, view.size.x);
     vterm_set_utf8(vt, 1);
+
+    state = vterm_obtain_state(vt);
+    vterm_state_reset(state, true);
 
     vts = vterm_obtain_screen(vt);
     vterm_screen_set_callbacks(vts, &callbacks, this);
@@ -58,13 +74,15 @@ TVTermAdapter::TVTermAdapter(TVTermView &view) :
     }
     else
     {
-        listener = new PTYListener(master_fd);
+        fd_set_flags(master_fd, O_NONBLOCK);
+        listener = new PTYListener(*this);
     }
 }
 
 TVTermAdapter::~TVTermAdapter()
 {
     delete listener;
+    cerr << "close(" << master_fd << ") = " << ::close(master_fd) << endl;
     cerr << "waitpid(" << child_pid <<") = " << flush
          << waitpid(child_pid, nullptr, 0) << endl;
     vterm_free(vt);
@@ -136,50 +154,89 @@ void TVTermAdapter::initTermios( struct termios &termios,
     winsize = w;
 }
 
-int TVTermAdapter::damage(VTermRect rect, void *user)
+void TVTermAdapter::read()
 {
-    auto *self = (TVTermAdapter *) user;
+    if (pending)
+    {
+        pending = false;
+        char buf[4096];
+        ssize_t size;
+        while ((size = ::read(master_fd, buf, sizeof(buf))) > 0)
+        {
+            cerr << master_fd << ": read " << size << " bytes." << endl;
+            vterm_input_write(vt, buf, size);
+        }
+        vterm_screen_flush_damage(vts);
+    }
+}
+
+// These functions are inline because they may only be invoked from the
+// 'TVTermAdapter::callbacks' table, which contains references to functions
+// generated at compile time.
+
+inline int TVTermAdapter::damage(VTermRect rect)
+{
+    TRect r(rect.start_col, rect.start_row, rect.end_col, rect.end_row);
+    r.intersect(view.getExtent());
+    for (int y = r.a.y; y < r.b.y; ++y)
+    {
+        TSpan<TScreenCell> cells(&view.at(y, r.a.x), r.b.x - r.a.x);
+        size_t ci = 0;
+        for (int x = r.a.x; x < r.b.x;)
+        {
+            VTermScreenCell cell;
+            vterm_screen_get_cell(vts, {y, x}, &cell);
+            {
+                char text[4*VTERM_MAX_CHARS_PER_CELL];
+                VTermRect pos = {y, y + 1, x, x + 1};
+                size_t textLength = vterm_screen_get_text(vts, text, sizeof(text), pos);
+                size_t ti = 0;
+                while (TText::eat(cells, ci, {text, textLength}, ti))
+                    ;
+            }
+            x += cell.width;
+        }
+    }
+    view.window.drawView();
     return 0;
 }
 
-int TVTermAdapter::moverect(VTermRect dest, VTermRect src, void *user)
+inline int TVTermAdapter::moverect(VTermRect dest, VTermRect src)
 {
-    auto *self = (TVTermAdapter *) user;
     return 0;
 }
 
-int TVTermAdapter::movecursor(VTermPos pos, VTermPos oldpos, int visible, void *user)
+inline int TVTermAdapter::movecursor(VTermPos pos, VTermPos oldpos, int visible)
 {
-    auto *self = (TVTermAdapter *) user;
+    if (visible)
+        view.showCursor();
+    else
+        view.hideCursor();
+    view.setCursor(pos.col, pos.row);
     return 0;
 }
 
-int TVTermAdapter::settermprop(VTermProp prop, VTermValue *val, void *user)
+inline int TVTermAdapter::settermprop(VTermProp prop, VTermValue *val)
 {
-    auto *self = (TVTermAdapter *) user;
     return 0;
 }
 
-int TVTermAdapter::bell(void *user)
+inline int TVTermAdapter::bell()
 {
-    auto *self = (TVTermAdapter *) user;
     return 0;
 }
 
-int TVTermAdapter::resize(int rows, int cols, void *user)
+inline int TVTermAdapter::resize(int rows, int cols)
 {
-    auto *self = (TVTermAdapter *) user;
     return 0;
 }
 
-int TVTermAdapter::sb_pushline(int cols, const VTermScreenCell *cells, void *user)
+inline int TVTermAdapter::sb_pushline(int cols, const VTermScreenCell *cells)
 {
-    auto *self = (TVTermAdapter *) user;
     return 0;
 }
 
-int TVTermAdapter::sb_popline(int cols, VTermScreenCell *cells, void *user)
+inline int TVTermAdapter::sb_popline(int cols, VTermScreenCell *cells)
 {
-    auto *self = (TVTermAdapter *) user;
     return 0;
 }

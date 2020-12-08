@@ -1,31 +1,21 @@
 #include <tvterm/ptylisten.h>
-#include <tvterm/util.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <string_view>
+#include <tvterm/vtermview.h>
 
-PTYListener::PTYListener(int master_fd) :
-    master_fd(master_fd)
+PTYListener::PTYListener(TVTermAdapter &vterm) :
+    vterm(vterm)
 {
-    fd_set_flags(master_fd, O_NONBLOCK);
-    addListener(this, master_fd);
-}
-
-PTYListener::~PTYListener()
-{
-    cerr << "PTYListener::~PTYListener: close(master_fd) = " << close(master_fd) << endl;
+    addListener(this, vterm.master_fd);
 }
 
 bool PTYListener::getEvent(TEvent &ev)
 {
-    cerr << "PTYListener::getEvent: read(" << master_fd << ") BEGIN" << endl;
-    int rr;
-    char buf[256];
-    while ((rr = read(master_fd, buf, sizeof(buf))) > 0)
+    if (!vterm.pending)
     {
-        cerr << std::string_view {buf, (size_t) rr};
+        vterm.pending = true;
+        ev.what = evCommand;
+        ev.message.command = cmVTermReadable;
+        ev.message.infoPtr = &vterm;
+        return true;
     }
-    cerr << endl
-         << "PTYListener::getEvent: read(" << master_fd << ") END" << endl;
     return false;
 }
