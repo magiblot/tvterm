@@ -235,6 +235,13 @@ inline int TVTermAdapter::movecursor(VTermPos pos, VTermPos oldpos, int visible)
 
 inline int TVTermAdapter::settermprop(VTermProp prop, VTermValue *val)
 {
+    switch (prop)
+    {
+        case VTERM_PROP_TITLE:
+            view.window.setTitle(val->string);
+            break;
+        default: break;
+    }
     return 0;
 }
 
