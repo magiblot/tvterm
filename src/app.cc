@@ -44,7 +44,7 @@ TMenuBar *TVTermApp::initMenuBar(TRect r)
             *new TMenuItem( "C~a~scade", cmCascade, kbNoKey ) +
             *new TMenuItem( "~N~ext", cmNext, kbF6, hcNoContext, "F6" ) +
             *new TMenuItem( "~P~revious", cmPrev, kbShiftF6, hcNoContext, "Shift-F6" ) +
-            *new TMenuItem( "~C~lose", cmClose, kbCtrlW, hcNoContext, "Ctrl+W" )
+            *new TMenuItem( "~C~lose", cmClose, kbAltF3, hcNoContext, "Alt+F3" )
             );
 }
 
