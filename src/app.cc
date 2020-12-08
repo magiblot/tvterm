@@ -70,9 +70,6 @@ void TVTermApp::handleEvent(TEvent &event)
             {
                 case cmNewTerm: newTerm(); break;
                 case cmChangeDir: changeDir(); break;
-                case cmDosShell: shell(); break;
-                case cmTile: tile(); break;
-                case cmCascade: cascade(); break;
                 default:
                     handled = false;
                     break;
@@ -100,23 +97,4 @@ void TVTermApp::newTerm()
 void TVTermApp::changeDir()
 {
     execDialog(new TChDirDialog(cdNormal, 0));
-}
-
-void TVTermApp::shell()
-{
-    suspend();
-    cout << "The application has been stopped. You can return by entering 'fg'." << endl;
-    raise(SIGTSTP);
-    resume();
-    redraw();
-}
-
-void TVTermApp::tile()
-{
-    deskTop->tile( deskTop->getExtent() );
-}
-
-void TVTermApp::cascade()
-{
-    deskTop->cascade( deskTop->getExtent() );
 }
