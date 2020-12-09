@@ -380,10 +380,6 @@ inline int TVTermAdapter::moverect(VTermRect dest, VTermRect src)
 
 inline int TVTermAdapter::movecursor(VTermPos pos, VTermPos oldpos, int visible)
 {
-    if (visible)
-        view.showCursor();
-    else
-        view.hideCursor();
     view.setCursor(pos.col, pos.row);
     return 0;
 }
@@ -394,6 +390,12 @@ inline int TVTermAdapter::settermprop(VTermProp prop, VTermValue *val)
     {
         case VTERM_PROP_TITLE:
             view.window.setTitle(val->string);
+            break;
+        case VTERM_PROP_CURSORVISIBLE:
+            val->boolean ? view.showCursor() : view.hideCursor();
+            break;
+        case VTERM_PROP_CURSORBLINK:
+            view.setState(sfCursorIns, val->boolean);
             break;
         case VTERM_PROP_MOUSE:
             mouseEnabled = val->boolean;
