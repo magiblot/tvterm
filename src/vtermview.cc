@@ -1,4 +1,5 @@
 #define Uses_TText
+#define Uses_TKeys
 #include <tvision/tv.h>
 
 #include <tvterm/vtermview.h>
@@ -7,6 +8,7 @@
 #include <tvterm/vterm.h>
 #include <tvterm/pty.h>
 #include <tvterm/util.h>
+#include <unordered_map>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -18,6 +20,7 @@ TVTermView::TVTermView(const TRect &bounds, TVTermWindow &window) :
 {
     growMode = gfGrowHiX | gfGrowHiY;
     options |= ofSelectable | ofFirstClick;
+    eventMask |= evMouseUp | evMouseMove | evMouseAuto;
     showCursor();
 }
 
@@ -34,6 +37,12 @@ void TVTermView::changeBounds(const TRect& bounds)
     vterm.setSize(size.y, size.x);
 }
 
+void TVTermView::handleEvent(TEvent &ev)
+{
+    TView::handleEvent(ev);
+    vterm.handleEvent(ev);
+}
+
 const VTermScreenCallbacks TVTermAdapter::callbacks = {
     static_wrap<&TVTermAdapter::damage>,
     static_wrap<&TVTermAdapter::moverect>,
@@ -45,11 +54,78 @@ const VTermScreenCallbacks TVTermAdapter::callbacks = {
     static_wrap<&TVTermAdapter::sb_popline>,
 };
 
+static const std::unordered_map<ushort, VTermKey> tv_vterm_keys = {
+    { kbEnter,          VTERM_KEY_ENTER     },
+    { kbCtrlEnter,      VTERM_KEY_ENTER     },
+    { kbTab,            VTERM_KEY_TAB       },
+    { kbShiftTab,       VTERM_KEY_TAB       },
+    { kbBack,           VTERM_KEY_BACKSPACE },
+    { kbAltBack,        VTERM_KEY_BACKSPACE },
+    { kbCtrlBack,       VTERM_KEY_BACKSPACE },
+    { kbEsc,            VTERM_KEY_ESCAPE    },
+    { kbUp,             VTERM_KEY_UP        },
+    { kbAltUp,          VTERM_KEY_UP        },
+    { kbCtrlUp,         VTERM_KEY_UP        },
+    { kbDown,           VTERM_KEY_DOWN      },
+    { kbAltDown,        VTERM_KEY_DOWN      },
+    { kbCtrlDown,       VTERM_KEY_DOWN      },
+    { kbLeft,           VTERM_KEY_LEFT      },
+    { kbAltLeft,        VTERM_KEY_LEFT      },
+    { kbCtrlLeft,       VTERM_KEY_LEFT      },
+    { kbRight,          VTERM_KEY_RIGHT     },
+    { kbAltRight,       VTERM_KEY_RIGHT     },
+    { kbCtrlRight,      VTERM_KEY_RIGHT     },
+    { kbIns,            VTERM_KEY_INS       },
+    { kbAltIns,         VTERM_KEY_INS       },
+    { kbCtrlIns,        VTERM_KEY_INS       },
+    { kbShiftIns,       VTERM_KEY_INS       },
+    { kbDel,            VTERM_KEY_DEL       },
+    { kbAltDel,         VTERM_KEY_DEL       },
+    { kbCtrlDel,        VTERM_KEY_DEL       },
+    { kbShiftDel,       VTERM_KEY_DEL       },
+    { kbHome,           VTERM_KEY_HOME      },
+    { kbAltHome,        VTERM_KEY_HOME      },
+    { kbCtrlHome,       VTERM_KEY_HOME      },
+    { kbEnd,            VTERM_KEY_END       },
+    { kbAltEnd,         VTERM_KEY_END       },
+    { kbCtrlEnd,        VTERM_KEY_END       },
+    { kbPgUp,           VTERM_KEY_PAGEUP    },
+    { kbAltPgUp,        VTERM_KEY_PAGEUP    },
+    { kbCtrlPgUp,       VTERM_KEY_PAGEUP    },
+    { kbPgDn,           VTERM_KEY_PAGEDOWN  },
+    { kbAltPgDn,        VTERM_KEY_PAGEDOWN  },
+    { kbCtrlPgDn,       VTERM_KEY_PAGEDOWN  },
+};
+
+static constexpr struct { ushort tvmod; VTermModifier vtmod; } tv_vterm_modifiers[] = {
+    { kbShift,      VTERM_MOD_SHIFT },
+    { kbAltShift,   VTERM_MOD_ALT   },
+    { kbCtrlShift,  VTERM_MOD_CTRL  },
+};
+
+static VTermKey tv_vterm_conv_key(ushort keyCode)
+{
+    auto it = tv_vterm_keys.find(keyCode);
+    if (it != tv_vterm_keys.end())
+        return it->second;
+    return VTERM_KEY_NONE;
+}
+
+static VTermModifier tv_vterm_conv_mod(ulong controlKeyState)
+{
+    VTermModifier mod = VTERM_MOD_NONE;
+    for (const auto [tvmod, vtmod] : tv_vterm_modifiers)
+        if (controlKeyState & tvmod)
+            mod = VTermModifier(mod | vtmod);
+    return mod;
+}
+
 TVTermAdapter::TVTermAdapter(TVTermView &view) :
     view(view),
     listener(nullptr),
     pending(false),
-    resizing(false)
+    resizing(false),
+    mouseEnabled(false)
 {
     vt = vterm_new(view.size.y, view.size.x);
     vterm_set_utf8(vt, 1);
@@ -59,6 +135,8 @@ TVTermAdapter::TVTermAdapter(TVTermView &view) :
 
     vts = vterm_obtain_screen(vt);
     vterm_screen_set_callbacks(vts, &callbacks, this);
+
+    vterm_output_set_callback(vt, static_wrap<&TVTermAdapter::writeOutput>, this);
 
     struct termios termios;
     struct winsize winsize;
@@ -187,9 +265,85 @@ void TVTermAdapter::setSize(int rows, int cols)
     }
 }
 
-// These functions are inline because they may only be invoked from the
-// 'TVTermAdapter::callbacks' table, which contains references to functions
-// generated at compile time.
+void TVTermAdapter::handleEvent(TEvent &ev)
+{
+    bool handled = true;
+    switch (ev.what)
+    {
+        case evKeyDown:
+        {
+            VTermModifier mod = tv_vterm_conv_mod(ev.keyDown.controlKeyState);
+            if (kbCtrlA <= ev.keyDown.keyCode && ev.keyDown.keyCode <= kbCtrlZ)
+            {
+                ev.keyDown.text[0] = ev.keyDown.keyCode;
+                ev.keyDown.textLength = 1;
+                mod = VTermModifier(mod & ~VTERM_MOD_CTRL);
+            }
+            else if (char c = getAltChar(ev.keyDown.keyCode))
+            {
+                if (c == '\xF0') c = ' '; // Alt+Space.
+                ev.keyDown.text[0] = c;
+                ev.keyDown.textLength = 1;
+                mod = VTermModifier(mod | VTERM_MOD_ALT); // TVision bug?
+            }
+            if (ev.keyDown.textLength)
+            {
+                uint32_t c = utf8To32(ev.keyDown.asText());
+                vterm_keyboard_unichar(vt, c, mod);
+            }
+            else if (VTermKey key = tv_vterm_conv_key(ev.keyDown.keyCode))
+            {
+                vterm_keyboard_key(vt, key, mod);
+            }
+            break;
+        }
+        case evMouseDown:
+        case evMouseMove:
+        case evMouseAuto:
+        case evMouseUp:
+        case evMouseWheel:
+            if (mouseEnabled)
+            {
+                VTermModifier mod = tv_vterm_conv_mod(ev.mouse.controlKeyState);
+                TPoint where = view.makeLocal(ev.mouse.where);
+                int button =    (ev.mouse.buttons & mbLeftButton)   ? 1 :
+                                (ev.mouse.buttons & mbMiddleButton) ? 2 :
+                                (ev.mouse.buttons & mbRightButton)  ? 3 :
+                                (ev.mouse.wheel & mwUp)             ? 4 :
+                                (ev.mouse.wheel & mwDown)           ? 5 :
+                                                                    0 ;
+                cerr << "mouseMove(" << where.y << ", " << where.x << ")" << endl;
+                vterm_mouse_move(vt, where.y, where.x, mod);
+                if (!(ev.what & (evMouseMove | evMouseAuto)))
+                    vterm_mouse_button(vt, button, ev.what != evMouseUp, mod);
+            }
+            break;
+        default:
+            handled = false;
+            break;
+    }
+
+    if (handled)
+    {
+        flushOutput();
+        view.clearEvent(ev);
+    }
+}
+
+void TVTermAdapter::flushOutput()
+{
+    int rr = ::write(master_fd, outbuf.data(), outbuf.size());
+    (void) rr;
+    outbuf.resize(0);
+}
+
+// These functions are inline because they may only be invoked through
+// 'static_wrap'.
+
+inline void TVTermAdapter::writeOutput(const char *data, size_t size)
+{
+    outbuf.insert(outbuf.end(), data, data + size);
+}
 
 inline int TVTermAdapter::damage(VTermRect rect)
 {
@@ -239,6 +393,9 @@ inline int TVTermAdapter::settermprop(VTermProp prop, VTermValue *val)
     {
         case VTERM_PROP_TITLE:
             view.window.setTitle(val->string);
+            break;
+        case VTERM_PROP_MOUSE:
+            mouseEnabled = val->boolean;
             break;
         default: break;
     }

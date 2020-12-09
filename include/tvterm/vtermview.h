@@ -5,6 +5,7 @@
 #include <tvision/tv.h>
 
 #include <sys/types.h>
+#include <vector>
 
 struct TVTermWindow;
 struct TVTermView;
@@ -22,6 +23,8 @@ struct TVTermAdapter
     PTYListener *listener;
     bool pending;
     bool resizing;
+    bool mouseEnabled;
+    std::vector<char> outbuf;
 
     static const VTermScreenCallbacks callbacks;
 
@@ -32,7 +35,10 @@ struct TVTermAdapter
 
     void read();
     void setSize(int rows, int cols);
+    void handleEvent(TEvent &ev);
+    void flushOutput();
 
+    void writeOutput(const char *data, size_t size);
     int damage(VTermRect rect);
     int moverect(VTermRect dest, VTermRect src);
     int movecursor(VTermPos pos, VTermPos oldpos, int visible);
@@ -54,6 +60,7 @@ struct TVTermView : public TView
 
     TScreenCell& at(int y, int x);
     void changeBounds(const TRect& bounds) override;
+    void handleEvent(TEvent &ev) override;
 
 };
 
