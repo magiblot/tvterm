@@ -362,6 +362,11 @@ inline int TVTermAdapter::damage(VTermRect rect)
                 char text[4*VTERM_MAX_CHARS_PER_CELL];
                 VTermRect pos = {y, y + 1, x, x + 1};
                 size_t textLength = vterm_screen_get_text(vts, text, sizeof(text), pos);
+                if (!textLength)
+                {
+                    text[0] = '\0';
+                    textLength = 1;
+                }
                 size_t ti = 0;
                 while (TText::eat(cells, ci, {text, textLength}, ti))
                     ;
