@@ -70,6 +70,16 @@ TStatusLine *TVTermApp::initStatusLine( TRect r )
             );
 }
 
+void TVTermApp::getEvent(TEvent &ev)
+{
+    TApplication::getEvent(ev);
+    if (ev.what == evCommand && ev.message.command == cmVTermReadable)
+    {
+        ((TVTermAdapter *) ev.message.infoPtr)->read();
+        clearEvent(ev);
+    }
+}
+
 void TVTermApp::handleEvent(TEvent &event)
 {
     TApplication::handleEvent(event);
@@ -81,8 +91,6 @@ void TVTermApp::handleEvent(TEvent &event)
             {
                 case cmNewTerm: newTerm(); break;
                 case cmChangeDir: changeDir(); break;
-                case cmVTermReadable:
-                    ((TVTermAdapter *) event.message.infoPtr)->read(); break;
                 default:
                     handled = false;
                     break;

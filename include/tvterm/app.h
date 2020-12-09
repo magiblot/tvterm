@@ -12,6 +12,7 @@ struct TVTermApp : public TApplication
     static TMenuBar* initMenuBar(TRect r);
     static TStatusLine* initStatusLine(TRect r);
 
+    void getEvent(TEvent &event) override;
     void handleEvent(TEvent &event) override;
 
     // Command handlers
