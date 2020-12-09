@@ -253,6 +253,7 @@ void TVTermAdapter::read()
             vterm_input_write(vt, buf, size);
         }
         vterm_screen_flush_damage(vts);
+        view.window.drawView();
     }
 }
 
@@ -374,7 +375,6 @@ inline int TVTermAdapter::damage(VTermRect rect)
             x += cell.width;
         }
     }
-    view.window.drawView();
     return 0;
 }
 
