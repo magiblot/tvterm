@@ -10,6 +10,7 @@
 #include <tvterm/util.h>
 #include <unordered_map>
 #include <sys/wait.h>
+#include <signal.h>
 #include <unistd.h>
 #include <fcntl.h>
 
@@ -168,8 +169,8 @@ TVTermAdapter::~TVTermAdapter()
 {
     delete listener;
     cerr << "close(" << master_fd << ") = " << ::close(master_fd) << endl;
-    cerr << "waitpid(" << child_pid <<") = " << flush
-         << waitpid(child_pid, nullptr, 0) << endl;
+    cerr << "kill(" << child_pid << ", SIGINT) = " << ::kill(child_pid, SIGINT) << endl;
+    cerr << "kill(" << child_pid << ", SIGTERM) = " << ::kill(child_pid, SIGTERM) << endl;
     vterm_free(vt);
 }
 
