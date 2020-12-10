@@ -5,6 +5,14 @@
 #include <tvterm/vtermview.h>
 #include <tvterm/cmds.h>
 
+TCommandSet TVTermWindow::focusedCmds = []()
+{
+    TCommandSet ts;
+    ts += cmGrabInput;
+    ts += cmReleaseInput;
+    return ts;
+}();
+
 TVTermWindow::TVTermWindow(const TRect &bounds) :
     TWindowInit(&TVTermWindow::initFrame),
     TWindow(bounds, nullptr, wnNoNumber)
@@ -46,6 +54,18 @@ void TVTermWindow::handleEvent(TEvent &ev)
     }
     else
         TWindow::handleEvent(ev);
+}
+
+void TVTermWindow::setState(ushort aState, Boolean enable)
+{
+    TWindow::setState(aState, enable);
+    if (aState == sfActive)
+    {
+        if (enable)
+            enableCommands(focusedCmds);
+        else
+            disableCommands(focusedCmds);
+    }
 }
 
 ushort TVTermWindow::execute()

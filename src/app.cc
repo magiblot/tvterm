@@ -20,6 +20,13 @@
 #include <signal.h>
 
 TVTermApp* TVTermApp::app;
+TCommandSet TVTermApp::tileCmds = []()
+{
+    TCommandSet ts;
+    ts += cmTile;
+    ts += cmCascade;
+    return ts;
+}();
 
 void tvterm_main(int, char**)
 {
@@ -36,6 +43,8 @@ TVTermApp::TVTermApp() :
                &TVTermApp::initDeskTop
              )
 {
+    disableCommands(tileCmds);
+    disableCommands(TVTermWindow::focusedCmds);
 }
 
 TMenuBar *TVTermApp::initMenuBar(TRect r)
@@ -110,6 +119,20 @@ void TVTermApp::handleEvent(TEvent &event)
     }
     if (handled)
         clearEvent(event);
+}
+
+void TVTermApp::idle()
+{
+    TApplication::idle();
+    {
+        // Enable or disable the cmTile and cmCascade commands.
+        auto isTileable =
+            [] (TView *p, void *) -> Boolean { return p->options & ofTileable; };
+        if (deskTop->firstThat(isTileable, nullptr))
+            enableCommands(tileCmds);
+        else
+            disableCommands(tileCmds);
+    }
 }
 
 // Command handlers

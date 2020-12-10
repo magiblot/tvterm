@@ -2,11 +2,13 @@
 #define TVTERM_APP_H
 
 #define Uses_TApplication
+#define Uses_TCommandSet
 #include <tvision/tv.h>
 
 struct TVTermApp : public TApplication
 {
     static TVTermApp *app;
+    static TCommandSet tileCmds;
 
     TVTermApp();
     static TMenuBar* initMenuBar(TRect r);
@@ -14,14 +16,12 @@ struct TVTermApp : public TApplication
 
     void getEvent(TEvent &event) override;
     void handleEvent(TEvent &event) override;
+    void idle() override;
 
     // Command handlers
 
     void newTerm();
     void changeDir();
-    void shell();
-    void tile();
-    void cascade();
 
 };
 
