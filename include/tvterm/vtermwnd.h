@@ -11,7 +11,12 @@ struct TVTermWindow : public TWindow
 
     TVTermWindow(const TRect &bounds);
 
+    std::string_view termTitle;
+
     void setTitle(std::string_view);
+
+    void handleEvent(TEvent &ev) override;
+    ushort execute() override;
 
 };
 

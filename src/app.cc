@@ -63,9 +63,17 @@ TStatusLine *TVTermApp::initStatusLine( TRect r )
 {
     r.a.y = r.b.y-1;
     return new TStatusLine( r,
+        *new TStatusDef( hcDragging, hcDragging ) +
+            *new TStatusItem( "~Arrow~ Move", kbNoKey, cmValid ) +
+            *new TStatusItem( "~Shift-Arrow~ Resize", kbNoKey, cmValid ) +
+            *new TStatusItem( "~Enter~ Done", kbNoKey, cmValid ) +
+            *new TStatusItem( "~Esc~ Abort", kbNoKey, cmValid ) +
+        *new TStatusDef( hcInputGrabbed, hcInputGrabbed ) +
+            *new TStatusItem( "~Alt-PgDn~ Release Input", kbAltPgDn, cmReleaseInput ) +
         *new TStatusDef( 0, 0xFFFF ) +
             *new TStatusItem( "~Ctrl-N~ New", kbNoKey, cmNewTerm ) +
             *new TStatusItem( "~F6~ Next", kbNoKey, cmNext ) +
+            *new TStatusItem( "~Alt-PgUp~ Grab Input", kbAltPgUp, cmGrabInput ) +
             *new TStatusItem( "~F12~ Menu" , kbF12, cmMenu )
             );
 }
