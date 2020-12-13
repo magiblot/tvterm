@@ -151,6 +151,7 @@ TVTermAdapter::TVTermAdapter(TVTermView &view) :
         signal(SIGQUIT, SIG_DFL);
         signal(SIGSTOP, SIG_DFL);
         signal(SIGCONT, SIG_DFL);
+        setenv("TERM", "xterm", 1);
         char *shell = getenv("SHELL");
         char *args[] = { shell, nullptr };
         execvp(shell, args);
