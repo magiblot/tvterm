@@ -34,9 +34,14 @@ struct TVTermAdapter
     void initTermios(struct termios &, struct winsize &) const;
 
     void read();
-    void setSize(int rows, int cols);
     void handleEvent(TEvent &ev);
     void flushOutput();
+
+    void updateChildSize(TPoint s);
+    void updateParentSize();
+    TPoint getChildSize() const;
+    void setChildSize(TPoint s) const;
+    void setParentSize(TPoint s);
 
     void writeOutput(const char *data, size_t size);
     int damage(VTermRect rect);

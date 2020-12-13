@@ -35,7 +35,7 @@ inline TScreenCell& TVTermView::at(int y, int x)
 void TVTermView::changeBounds(const TRect& bounds)
 {
     TView::changeBounds(bounds);
-    vterm.setSize(size.y, size.x);
+    vterm.updateChildSize(size);
 }
 
 void TVTermView::handleEvent(TEvent &ev)
@@ -245,6 +245,7 @@ void TVTermAdapter::read()
     if (pending)
     {
         pending = false;
+        updateParentSize();
         char buf[4096];
         ssize_t size;
         while ((size = ::read(master_fd, buf, sizeof(buf))) > 0)
@@ -252,18 +253,9 @@ void TVTermAdapter::read()
             cerr << master_fd << ": read " << size << " bytes." << endl;
             vterm_input_write(vt, buf, size);
         }
+        updateParentSize();
         vterm_screen_flush_damage(vts);
         view.window.drawView();
-    }
-}
-
-void TVTermAdapter::setSize(int rows, int cols)
-{
-    if (!resizing)
-    {
-        resizing = true;
-        vterm_set_size(vt, rows, cols);
-        resizing = false;
     }
 }
 
@@ -313,7 +305,7 @@ void TVTermAdapter::handleEvent(TEvent &ev)
                                 (ev.mouse.buttons & mbRightButton)  ? 3 :
                                 (ev.mouse.wheel & mwUp)             ? 4 :
                                 (ev.mouse.wheel & mwDown)           ? 5 :
-                                                                    0 ;
+                                                                      0 ;
                 cerr << "mouseMove(" << where.y << ", " << where.x << ")" << endl;
                 vterm_mouse_move(vt, where.y, where.x, mod);
                 if (!(ev.what & (evMouseMove | evMouseAuto)))
@@ -338,6 +330,53 @@ void TVTermAdapter::flushOutput()
     (void) rr;
     outbuf.resize(0);
 }
+
+void TVTermAdapter::updateChildSize(TPoint s)
+{
+    // Signal the child.
+    setChildSize(s);
+    vterm_set_size(vt, s.y, s.x);
+    // Redrawing this way reduces flicker.
+    // 'vterm_screen_flush_damage' would clear the window.
+    callbacks.damage({0, s.y, 0, s.x}, this);
+}
+
+void TVTermAdapter::updateParentSize()
+{
+    setParentSize(getChildSize());
+}
+
+TPoint TVTermAdapter::getChildSize() const
+{
+    struct winsize w = {};
+    ioctl(master_fd, TIOCGWINSZ, &w);
+    return {w.ws_col, w.ws_row};
+}
+
+void TVTermAdapter::setChildSize(TPoint s) const
+{
+    if (s != getChildSize())
+    {
+        struct winsize w = {};
+        w.ws_row = s.y;
+        w.ws_col = s.x;
+        ioctl(master_fd, TIOCSWINSZ, &w);
+    }
+}
+
+void TVTermAdapter::setParentSize(TPoint s)
+{
+    TPoint d = s - view.size;
+    if (d.x || d.y)
+    {
+        TRect r = view.window.getBounds();
+        r.b += d;
+        view.window.locate(r);
+        vterm_set_size(vt, s.y, s.x);
+        vterm_screen_flush_damage(vts);
+    }
+}
+
 
 // These functions are inline because they may only be invoked through
 // 'static_wrap'.
@@ -385,6 +424,7 @@ inline int TVTermAdapter::moverect(VTermRect dest, VTermRect src)
 
 inline int TVTermAdapter::movecursor(VTermPos pos, VTermPos oldpos, int visible)
 {
+    updateParentSize();
     view.setCursor(pos.col, pos.row);
     return 0;
 }
@@ -417,18 +457,6 @@ inline int TVTermAdapter::bell()
 
 inline int TVTermAdapter::resize(int rows, int cols)
 {
-    if (!resizing)
-    {
-        TPoint d = TPoint {cols, rows} - view.size;
-        if (d.x || d.y)
-        {
-            TRect r = view.window.getBounds();
-            r.b += d;
-            view.window.setBounds(r); // Triggers setSize() -> vterm_set_size() -> resize().
-        }
-    }
-    else
-        callbacks.damage({0, rows, 0, cols}, this);
     return 0;
 }
 
