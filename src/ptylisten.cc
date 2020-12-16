@@ -1,11 +1,9 @@
-#include <tvterm/ptylisten.h>
-#include <tvterm/vtermview.h>
+#define Uses_TEvent
+#include <tvision/tv.h>
 
-PTYListener::PTYListener(TVTermAdapter &vterm) :
-    vterm(vterm)
-{
-    addListener(this, vterm.master_fd);
-}
+#include <tvterm/ptylisten.h>
+#include <tvterm/vtermadapt.h>
+#include <tvterm/cmds.h>
 
 bool PTYListener::getEvent(TEvent &ev)
 {

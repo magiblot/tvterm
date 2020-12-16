@@ -4,6 +4,7 @@
 !.git*
 !deps/
 !include/
+!include/*/
 !src/
 *.bak
 *.dsw

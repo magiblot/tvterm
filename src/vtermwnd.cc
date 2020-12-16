@@ -1,4 +1,5 @@
 #define Uses_TFrame
+#define Uses_TEvent
 #include <tvision/tv.h>
 
 #include <tvterm/vtermwnd.h>

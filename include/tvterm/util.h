@@ -7,7 +7,7 @@
 #include <tvision/tv.h>
 #include <string_view>
 
-ushort execDialog(TDialog *d)
+inline ushort execDialog(TDialog *d)
 {
     TView *p = TProgram::application->validView(d);
     if (p)
@@ -20,6 +20,7 @@ ushort execDialog(TDialog *d)
 }
 
 int fd_set_flags(int fd, int flags);
+int fd_unset_flags(int fd, int flags);
 
 // https://stackoverflow.com/a/60166119
 

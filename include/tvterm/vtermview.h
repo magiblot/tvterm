@@ -2,58 +2,12 @@
 #define TVTERM_VTERMVIEW_H
 
 #define Uses_TView
+#define Uses_TGroup
 #include <tvision/tv.h>
 
-#include <sys/types.h>
-#include <vector>
+#include <tvterm/vtermadapt.h>
 
 struct TVTermWindow;
-struct TVTermView;
-struct PTYListener;
-
-struct TVTermAdapter
-{
-
-    TVTermView &view;
-    struct VTerm *vt;
-    struct VTermState *state;
-    struct VTermScreen *vts;
-    pid_t child_pid;
-    int master_fd;
-    PTYListener *listener;
-    bool pending;
-    bool resizing;
-    bool mouseEnabled;
-    std::vector<char> outbuf;
-
-    static const VTermScreenCallbacks callbacks;
-
-    TVTermAdapter(TVTermView &);
-    ~TVTermAdapter();
-
-    void initTermios(struct termios &, struct winsize &) const;
-
-    void read();
-    void handleEvent(TEvent &ev);
-    void flushOutput();
-
-    void updateChildSize(TPoint s);
-    void updateParentSize();
-    TPoint getChildSize() const;
-    void setChildSize(TPoint s) const;
-    void setParentSize(TPoint s);
-
-    void writeOutput(const char *data, size_t size);
-    int damage(VTermRect rect);
-    int moverect(VTermRect dest, VTermRect src);
-    int movecursor(VTermPos pos, VTermPos oldpos, int visible);
-    int settermprop(VTermProp prop, VTermValue *val);
-    int bell();
-    int resize(int rows, int cols);
-    int sb_pushline(int cols, const VTermScreenCell *cells);
-    int sb_popline(int cols, VTermScreenCell *cells);
-
-};
 
 struct TVTermView : public TView
 {
@@ -68,5 +22,12 @@ struct TVTermView : public TView
     void handleEvent(TEvent &ev) override;
 
 };
+
+inline TScreenCell& TVTermView::at(int y, int x)
+{
+    // Temporary solution: draw directly on the owner's buffer.
+    TRect r = getBounds();
+    return owner->buffer[owner->size.x * (r.a.y + y) + (r.a.x + x)];
+}
 
 #endif // TVTERM_VTERMVIEW_H
