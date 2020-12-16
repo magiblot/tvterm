@@ -20,6 +20,7 @@ struct TVTermView : public TView
     TScreenCell& at(int y, int x);
     void changeBounds(const TRect& bounds) override;
     void handleEvent(TEvent &ev) override;
+    void draw() override;
 
 };
 

@@ -228,9 +228,8 @@ void TVTermAdapter::updateChildSize()
     // Signal the child.
     setChildSize(s);
     vterm_set_size_safe(vt, s.y, s.x);
-    // Redrawing this way reduces flicker.
-    // 'vterm_screen_flush_damage' would clear the window.
-    callbacks.damage({0, s.y, 0, s.x}, this);
+    // This function is usually invoked during resizing.
+    // We rely on TVTermView::draw() being invoked at some point after this.
 }
 
 void TVTermAdapter::updateParentSize()
@@ -262,6 +261,16 @@ void TVTermAdapter::setParentSize(TPoint s)
         vterm_set_size_safe(vt, s.y, s.x);
         vterm_screen_flush_damage(vts);
     }
+}
+
+void TVTermAdapter::damageAll()
+{
+    // Redrawing this way reduces flicker.
+    // 'vterm_screen_flush_damage' would clear the window after
+    // a resize.
+    TPoint s;
+    vterm_get_size(vt, &s.y, &s.x);
+    damage({0, s.y, 0, s.x});
 }
 
 void TVTermAdapter::writeOutput(const char *data, size_t size)

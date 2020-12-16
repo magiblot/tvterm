@@ -38,6 +38,8 @@ struct TVTermAdapter
     void setChildSize(TPoint s) const;
     void setParentSize(TPoint s);
 
+    void damageAll();
+
     void writeOutput(const char *data, size_t size);
     int damage(VTermRect rect);
     int moverect(VTermRect dest, VTermRect src);
