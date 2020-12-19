@@ -9,6 +9,7 @@
 #include <tvterm/debug.h>
 #include <tvterm/pty.h>
 #include <unordered_map>
+#include <algorithm>
 
 const VTermScreenCallbacks TVTermAdapter::callbacks =
 {
@@ -365,12 +366,36 @@ int TVTermAdapter::resize(int rows, int cols)
 
 int TVTermAdapter::sb_pushline(int cols, const VTermScreenCell *cells)
 {
-    dout << "sb_pushline(" << cols << ", " << cells << ")" << endl;
+    linestack.push(std::max(cols, 0), cells);
     return 0;
 }
 
 int TVTermAdapter::sb_popline(int cols, VTermScreenCell *cells)
 {
-    dout << "sb_popline(" << cols << ", " << cells << ")" << endl;
-    return 0;
+    return linestack.pop(*this, std::max(cols, 0), cells);
+}
+
+void TVTermAdapter::LineStack::push(size_t cols, const VTermScreenCell *src)
+{
+    auto line = TSpan(new VTermScreenCell[cols], cols);
+    memcpy(line.data(), src, line.size_bytes());
+    stack.emplace_back(line.data(), cols);
+}
+
+bool TVTermAdapter::LineStack::pop( const TVTermAdapter &vterm,
+                                    size_t cols, VTermScreenCell *dst )
+{
+    if (!stack.empty())
+    {
+        auto line = top();
+        size_t dst_size = cols*sizeof(VTermScreenCell);
+        size_t copy_bytes = std::min(line.size_bytes(), dst_size);
+        memcpy(dst, line.data(), copy_bytes);
+        auto cell = vterm.getDefaultCell();
+        for (size_t i = line.size(); i < cols; ++i)
+            dst[i] = cell;
+        stack.pop_back();
+        return true;
+    }
+    return false;
 }
