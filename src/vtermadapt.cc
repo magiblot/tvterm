@@ -109,6 +109,7 @@ TVTermAdapter::TVTermAdapter(TVTermView &view) :
     vterm_state_reset(state, true);
 
     vts = vterm_obtain_screen(vt);
+    vterm_screen_enable_altscreen(vts, true);
     vterm_screen_set_callbacks(vts, &callbacks, this);
 
     vterm_output_set_callback(vt, static_wrap<&TVTermAdapter::writeOutput>, this);
