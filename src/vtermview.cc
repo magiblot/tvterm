@@ -12,7 +12,7 @@ TVTermView::TVTermView(const TRect &bounds, TVTermWindow &window) :
 {
     growMode = gfGrowHiX | gfGrowHiY;
     options |= ofSelectable | ofFirstClick;
-    eventMask |= evMouseUp | evMouseMove | evMouseAuto;
+    eventMask |= evMouseMove | evMouseAuto | evMouseWheel;
     showCursor();
 }
 

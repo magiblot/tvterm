@@ -94,6 +94,25 @@ namespace vtermadapt
         return mod;
     }
 
+    static void processMouse( TEvent &ev, TView &view,
+                              TPoint &where, VTermModifier &mod, int &button )
+    {
+        {
+            TPoint p = view.makeLocal(ev.mouse.where);
+            where = {
+                std::clamp(p.x, 0, view.size.x),
+                std::clamp(p.y, 0, view.size.y),
+            };
+        }
+        mod = convMod(ev.mouse.controlKeyState);
+        button =    (ev.mouse.buttons & mbLeftButton)   ? 1 :
+                    (ev.mouse.buttons & mbMiddleButton) ? 2 :
+                    (ev.mouse.buttons & mbRightButton)  ? 3 :
+                    (ev.mouse.wheel & mwUp)             ? 4 :
+                    (ev.mouse.wheel & mwDown)           ? 5 :
+                                                          0 ;
+    }
+
 } // namespace vtermadapt
 
 TVTermAdapter::TVTermAdapter(TVTermView &view) :
@@ -186,24 +205,35 @@ void TVTermAdapter::handleEvent(TEvent &ev)
             break;
         }
         case evMouseDown:
+            if (mouseEnabled)
+            {
+                do {
+                    TPoint where; VTermModifier mod; int button;
+                    processMouse(ev, view, where, mod, button);
+                    vterm_mouse_move(vt, where.y, where.x, mod);
+                    if (ev.what & (evMouseDown | evMouseUp | evMouseWheel))
+                        vterm_mouse_button(vt, button, ev.what != evMouseUp, mod);
+                    flushOutput();
+                } while (view.mouseEvent(ev, evMouse));
+                if (ev.what == evMouseUp)
+                {
+                    TPoint where; VTermModifier mod; int button;
+                    processMouse(ev, view, where, mod, button);
+                    vterm_mouse_move(vt, where.y, where.x, mod);
+                    vterm_mouse_button(vt, button, false, mod);
+                }
+            }
+            break;
         case evMouseMove:
         case evMouseAuto:
-        case evMouseUp:
         case evMouseWheel:
             if (mouseEnabled)
             {
-                VTermModifier mod = convMod(ev.mouse.controlKeyState);
-                TPoint where = view.makeLocal(ev.mouse.where);
-                int button =    (ev.mouse.buttons & mbLeftButton)   ? 1 :
-                                (ev.mouse.buttons & mbMiddleButton) ? 2 :
-                                (ev.mouse.buttons & mbRightButton)  ? 3 :
-                                (ev.mouse.wheel & mwUp)             ? 4 :
-                                (ev.mouse.wheel & mwDown)           ? 5 :
-                                                                      0 ;
-                dout << "mouseMove(" << where.y << ", " << where.x << ")" << endl;
+                TPoint where; VTermModifier mod; int button;
+                processMouse(ev, view, where, mod, button);
                 vterm_mouse_move(vt, where.y, where.x, mod);
-                if (!(ev.what & (evMouseMove | evMouseAuto)))
-                    vterm_mouse_button(vt, button, ev.what != evMouseUp, mod);
+                if (ev.what == evMouseWheel)
+                    vterm_mouse_button(vt, button, true, mod);
             }
             break;
         default:
@@ -310,25 +340,26 @@ int TVTermAdapter::damage(VTermRect rect)
                 x += cell.width;
             }
         }
+        return true;
     }
     else
     {
         dout << pty.getMaster() << ": no draw buffer!" << endl;
+        return false;
     }
-    return 0;
 }
 
 int TVTermAdapter::moverect(VTermRect dest, VTermRect src)
 {
     dout << "moverect(" << dest << ", " << src << ")" << endl;
-    return 0;
+    return false;
 }
 
 int TVTermAdapter::movecursor(VTermPos pos, VTermPos oldpos, int visible)
 {
     updateParentSize();
     view.setCursor(pos.col, pos.row);
-    return 0;
+    return true;
 }
 
 int TVTermAdapter::settermprop(VTermProp prop, VTermValue *val)
@@ -348,26 +379,27 @@ int TVTermAdapter::settermprop(VTermProp prop, VTermValue *val)
         case VTERM_PROP_MOUSE:
             mouseEnabled = val->boolean;
             break;
-        default: break;
+        default:
+            return false;
     }
-    return 0;
+    return true;
 }
 
 int TVTermAdapter::bell()
 {
     dout << "bell()" << endl;
-    return 0;
+    return false;
 }
 
 int TVTermAdapter::resize(int rows, int cols)
 {
-    return 0;
+    return false;
 }
 
 int TVTermAdapter::sb_pushline(int cols, const VTermScreenCell *cells)
 {
     linestack.push(std::max(cols, 0), cells);
-    return 0;
+    return true;
 }
 
 int TVTermAdapter::sb_popline(int cols, VTermScreenCell *cells)
