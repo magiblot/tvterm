@@ -2,6 +2,17 @@
 
 #include <cstdlib>
 
+namespace debug
+{
+
+    void breakable()
+    {
+    }
+
+    void (* volatile const breakable_ptr)() = &debug::breakable;
+
+} // namespace debug
+
 DebugCout DebugCout::instance;
 
 DebugCout::DebugCout() :

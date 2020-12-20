@@ -3,6 +3,24 @@
 
 #include <iostream>
 
+
+namespace debug
+{
+
+    // Set a breakpoint in debug::breakable and call debug_breakable()
+    // to trigger it.
+    void breakable();
+
+    // Call through volatile pointer is never inlined.
+    extern void (* volatile const breakable_ptr)();
+
+} // namespace debug
+
+inline void debug_breakable()
+{
+    (*debug::breakable_ptr)();
+}
+
 class DebugCout
 {
 
