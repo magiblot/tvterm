@@ -33,6 +33,7 @@ struct TVTermAdapter
     bool pending;
     bool resizing;
     bool mouseEnabled;
+    bool altScreenEnabled;
     std::vector<char> outbuf;
     LineStack linestack;
 

@@ -207,6 +207,20 @@ namespace vterminput
             vterm_mouse_button(vt, button, true, mod);
     }
 
+    static void wheelToArrow(TEvent &ev, VTerm *vt)
+    {
+        VTermKey key = VTERM_KEY_NONE;
+        switch (ev.mouse.wheel)
+        {
+            case mwUp: key = VTERM_KEY_UP; break;
+            case mwDown: key = VTERM_KEY_DOWN; break;
+            case mwLeft: key = VTERM_KEY_LEFT; break;
+            case mwRight: key = VTERM_KEY_RIGHT; break;
+        }
+        for (int i = 0; i < 3; ++i)
+            vterm_keyboard_key(vt, key, VTERM_MOD_NONE);
+    }
+
 } // namespace vterminput
 
 namespace vtermoutput
@@ -264,7 +278,8 @@ TVTermAdapter::TVTermAdapter(TVTermView &view) :
     listener(*this),
     pending(false),
     resizing(false),
-    mouseEnabled(false)
+    mouseEnabled(false),
+    altScreenEnabled(false)
 {
     vt = vterm_new(view.size.y, view.size.x);
     vterm_set_utf8(vt, 1);
@@ -331,9 +346,15 @@ void TVTermAdapter::handleEvent(TEvent &ev)
             if (mouseEnabled)
                 processMouseDown(ev, vt, view, [this] { flushOutput(); });
             break;
+        case evMouseWheel:
+            if (!mouseEnabled && altScreenEnabled)
+            {
+                wheelToArrow(ev, vt);
+                break;
+            }
+            // FALLTHROUGH
         case evMouseMove:
         case evMouseAuto:
-        case evMouseWheel:
             if (mouseEnabled)
                 processMouseOther(ev, vt, view);
             break;
@@ -469,6 +490,9 @@ int TVTermAdapter::settermprop(VTermProp prop, VTermValue *val)
             break;
         case VTERM_PROP_MOUSE:
             mouseEnabled = val->boolean;
+            break;
+        case VTERM_PROP_ALTSCREEN:
+            altScreenEnabled = val->boolean;
             break;
         default:
             return false;
