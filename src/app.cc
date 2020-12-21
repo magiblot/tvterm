@@ -12,6 +12,7 @@
 
 #include <tvterm/app.h>
 #include <tvterm/cmds.h>
+#include <tvterm/desk.h>
 #include <tvterm/util.h>
 #include <tvterm/vtermwnd.h>
 #include <tvterm/vtermview.h>
@@ -24,6 +25,8 @@ TCommandSet TVTermApp::tileCmds = []()
 {
     TCommandSet ts;
     ts += cmTile;
+    ts += cmTileCols;
+    ts += cmTileRows;
     ts += cmCascade;
     return ts;
 }();
@@ -60,7 +63,8 @@ TMenuBar *TVTermApp::initMenuBar(TRect r)
         *new TSubMenu( "~W~indows", kbAltW ) +
             *new TMenuItem( "~S~ize/move",cmResize, kbCtrlF5, hcNoContext, "Ctrl-F5" ) +
             *new TMenuItem( "~Z~oom", cmZoom, kbF5, hcNoContext, "F5" ) +
-            *new TMenuItem( "~T~ile", cmTile, kbNoKey ) +
+            *new TMenuItem( "~T~ile (Columns First)", cmTileCols, kbNoKey ) +
+            *new TMenuItem( "Tile (~R~ows First)", cmTileRows, kbNoKey ) +
             *new TMenuItem( "C~a~scade", cmCascade, kbNoKey ) +
             *new TMenuItem( "~N~ext", cmNext, kbF6, hcNoContext, "F6" ) +
             *new TMenuItem( "~P~revious", cmPrev, kbShiftF6, hcNoContext, "Shift-F6" ) +
@@ -87,6 +91,12 @@ TStatusLine *TVTermApp::initStatusLine( TRect r )
             );
 }
 
+TDeskTop *TVTermApp::initDeskTop( TRect r )
+{
+    r.grow(0, -1);
+    return new TVTermDesk(r);
+}
+
 void TVTermApp::getEvent(TEvent &ev)
 {
     TApplication::getEvent(ev);
@@ -108,6 +118,8 @@ void TVTermApp::handleEvent(TEvent &event)
             {
                 case cmNewTerm: newTerm(); break;
                 case cmChangeDir: changeDir(); break;
+                case cmTileCols: getDeskTop()->tileVertical(getTileRect()); break;
+                case cmTileRows: getDeskTop()->tileHorizontal(getTileRect()); break;
                 default:
                     handled = false;
                     break;
