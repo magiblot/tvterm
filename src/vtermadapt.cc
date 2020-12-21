@@ -23,7 +23,7 @@ const VTermScreenCallbacks TVTermAdapter::callbacks =
     static_wrap<&TVTermAdapter::sb_popline>,
 };
 
-namespace vtermadapt
+namespace vterminput
 {
 
     static const std::unordered_map<ushort, VTermKey> keys =
@@ -113,7 +113,57 @@ namespace vtermadapt
                                                           0 ;
     }
 
-} // namespace vtermadapt
+} // namespace vterminput
+
+namespace vtermoutput
+{
+
+    static void convAttr( TScreenCell &dst,
+                          const VTermScreenCell &cell )
+    {
+        TCellAttribs attr {};
+        auto fg = cell.fg,
+             bg = cell.bg;
+        if ( VTERM_COLOR_IS_DEFAULT_FG(&fg) ||
+             fg.type != VTERM_COLOR_INDEXED )
+        {
+            attr.fgSet(0x7); // This shouldn't be necessary. TVision FIXME.
+            attr.fgDefault = 1;
+        }
+        else
+            attr.fgSet(swapRedBlue(fg.indexed.idx));
+        if ( VTERM_COLOR_IS_DEFAULT_BG(&bg) ||
+             bg.type != VTERM_COLOR_INDEXED )
+        {
+            attr.bgSet(0x0);
+            attr.bgDefault = 1;
+        }
+        else
+            attr.bgSet(swapRedBlue(bg.indexed.idx));
+        attr.bold = cell.attrs.bold;
+        attr.underline = !!cell.attrs.underline;
+        attr.italic = cell.attrs.italic;
+        attr.reverse = cell.attrs.reverse;
+        ::setAttr(dst, attr);
+    }
+
+    static void convText( TSpan<TScreenCell> cells, size_t &ci,
+                          VTermScreen *vts, TPoint pos )
+    {
+        char text[4*VTERM_MAX_CHARS_PER_CELL];
+        VTermRect rect = {pos.y, pos.y + 1, pos.x, pos.x + 1};
+        size_t textLength = vterm_screen_get_text(vts, text, sizeof(text), rect);
+        if (!textLength)
+        {
+            text[0] = '\0';
+            textLength = 1;
+        }
+        size_t ti = 0;
+        while (TText::eat(cells, ci, {text, textLength}, ti))
+            ;
+    }
+
+} // namespace vtermoutput
 
 TVTermAdapter::TVTermAdapter(TVTermView &view) :
     view(view),
@@ -136,7 +186,8 @@ TVTermAdapter::TVTermAdapter(TVTermView &view) :
 
     pty = PTY::create(view.size,
         []() {
-            setenv("TERM", "xterm", 1);
+            setenv("TERM", "xterm-16color", 1);
+            unsetenv("COLORTERM");
         }
     );
 
@@ -172,7 +223,7 @@ void TVTermAdapter::read()
 
 void TVTermAdapter::handleEvent(TEvent &ev)
 {
-    using namespace vtermadapt;
+    using namespace vterminput;
 
     bool handled = true;
     switch (ev.what)
@@ -312,6 +363,7 @@ void TVTermAdapter::writeOutput(const char *data, size_t size)
 
 int TVTermAdapter::damage(VTermRect rect)
 {
+    using namespace vtermoutput;
     if (view.owner->buffer)
     {
         TRect r(rect.start_col, rect.start_row, rect.end_col, rect.end_row);
@@ -324,19 +376,8 @@ int TVTermAdapter::damage(VTermRect rect)
             {
                 VTermScreenCell cell;
                 vterm_screen_get_cell(vts, {y, x}, &cell);
-                {
-                    char text[4*VTERM_MAX_CHARS_PER_CELL];
-                    VTermRect pos = {y, y + 1, x, x + 1};
-                    size_t textLength = vterm_screen_get_text(vts, text, sizeof(text), pos);
-                    if (!textLength)
-                    {
-                        text[0] = '\0';
-                        textLength = 1;
-                    }
-                    size_t ti = 0;
-                    while (TText::eat(cells, ci, {text, textLength}, ti))
-                        ;
-                }
+                convAttr(cells[ci], cell);
+                convText(cells, ci, vts, {x, y});
                 x += cell.width;
             }
         }

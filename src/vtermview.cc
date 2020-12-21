@@ -30,8 +30,5 @@ void TVTermView::handleEvent(TEvent &ev)
 
 void TVTermView::draw()
 {
-    // TView::draw will be necessary until TVTermAdapter::damage becomes capable
-    // of filling cell attributes.
-    TView::draw();
     vterm.damageAll();
 }

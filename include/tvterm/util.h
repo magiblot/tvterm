@@ -68,4 +68,12 @@ inline constexpr uint32_t utf8To32(std::string_view s)
     return 0;
 }
 
+inline constexpr uchar swapRedBlue(uchar c)
+{
+    uchar t1 = (c & 0b0000'0001) << 2;
+    uchar t2 = (c & 0b0000'0100) >> 2;
+    uchar t3 = (c & 0b0000'1010);
+    return t1 | t2 | t3;
+}
+
 #endif // TVTERM_UTIL_H
