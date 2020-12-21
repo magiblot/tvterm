@@ -94,8 +94,8 @@ namespace vterminput
         return mod;
     }
 
-    static void processMouse( TEvent &ev, TView &view,
-                              TPoint &where, VTermModifier &mod, int &button )
+    static void convMouse( TEvent &ev, TView &view,
+                           TPoint &where, VTermModifier &mod, int &button )
     {
         {
             TPoint p = view.makeLocal(ev.mouse.where);
@@ -111,6 +111,64 @@ namespace vterminput
                     (ev.mouse.wheel & mwUp)             ? 4 :
                     (ev.mouse.wheel & mwDown)           ? 5 :
                                                           0 ;
+    }
+
+    static void processKey(TEvent &ev, VTerm *vt)
+    {
+        VTermModifier mod = convMod(ev.keyDown.controlKeyState);
+        if (kbCtrlA <= ev.keyDown.keyCode && ev.keyDown.keyCode <= kbCtrlZ)
+        {
+            ev.keyDown.text[0] = ev.keyDown.keyCode;
+            ev.keyDown.textLength = 1;
+            mod = VTermModifier(mod & ~VTERM_MOD_CTRL);
+        }
+        else if (char c = getAltChar(ev.keyDown.keyCode))
+        {
+            if (c == '\xF0') c = ' '; // Alt+Space.
+            ev.keyDown.text[0] = c;
+            ev.keyDown.textLength = 1;
+            mod = VTermModifier(mod | VTERM_MOD_ALT); // TVision bug?
+        }
+        if (ev.keyDown.textLength)
+        {
+            uint32_t c = utf8To32(ev.keyDown.asText());
+            vterm_keyboard_unichar(vt, c, mod);
+        }
+        else
+        {
+            VTermKey key = convKey(ev.keyDown.keyCode);
+            if (key)
+                vterm_keyboard_key(vt, key, mod);
+        }
+    }
+
+    template <class Flush>
+    static void processMouseDown(TEvent &ev, VTerm *vt, TView &view, Flush &&flush)
+    {
+        do {
+            TPoint where; VTermModifier mod; int button;
+            convMouse(ev, view, where, mod, button);
+            vterm_mouse_move(vt, where.y, where.x, mod);
+            if (ev.what & (evMouseDown | evMouseUp | evMouseWheel))
+                vterm_mouse_button(vt, button, ev.what != evMouseUp, mod);
+            flush();
+        } while (view.mouseEvent(ev, evMouse));
+        if (ev.what == evMouseUp)
+        {
+            TPoint where; VTermModifier mod; int button;
+            convMouse(ev, view, where, mod, button);
+            vterm_mouse_move(vt, where.y, where.x, mod);
+            vterm_mouse_button(vt, button, false, mod);
+        }
+    }
+
+    static void processMouseOther(TEvent &ev, VTerm *vt, TView &view)
+    {
+        TPoint where; VTermModifier mod; int button;
+        convMouse(ev, view, where, mod, button);
+        vterm_mouse_move(vt, where.y, where.x, mod);
+        if (ev.what == evMouseWheel)
+            vterm_mouse_button(vt, button, true, mod);
     }
 
 } // namespace vterminput
@@ -230,62 +288,18 @@ void TVTermAdapter::handleEvent(TEvent &ev)
     {
         case evKeyDown:
         {
-            VTermModifier mod = convMod(ev.keyDown.controlKeyState);
-            if (kbCtrlA <= ev.keyDown.keyCode && ev.keyDown.keyCode <= kbCtrlZ)
-            {
-                ev.keyDown.text[0] = ev.keyDown.keyCode;
-                ev.keyDown.textLength = 1;
-                mod = VTermModifier(mod & ~VTERM_MOD_CTRL);
-            }
-            else if (char c = getAltChar(ev.keyDown.keyCode))
-            {
-                if (c == '\xF0') c = ' '; // Alt+Space.
-                ev.keyDown.text[0] = c;
-                ev.keyDown.textLength = 1;
-                mod = VTermModifier(mod | VTERM_MOD_ALT); // TVision bug?
-            }
-            if (ev.keyDown.textLength)
-            {
-                uint32_t c = utf8To32(ev.keyDown.asText());
-                vterm_keyboard_unichar(vt, c, mod);
-            }
-            else if (VTermKey key = convKey(ev.keyDown.keyCode))
-            {
-                vterm_keyboard_key(vt, key, mod);
-            }
+            processKey(ev, vt);
             break;
         }
         case evMouseDown:
             if (mouseEnabled)
-            {
-                do {
-                    TPoint where; VTermModifier mod; int button;
-                    processMouse(ev, view, where, mod, button);
-                    vterm_mouse_move(vt, where.y, where.x, mod);
-                    if (ev.what & (evMouseDown | evMouseUp | evMouseWheel))
-                        vterm_mouse_button(vt, button, ev.what != evMouseUp, mod);
-                    flushOutput();
-                } while (view.mouseEvent(ev, evMouse));
-                if (ev.what == evMouseUp)
-                {
-                    TPoint where; VTermModifier mod; int button;
-                    processMouse(ev, view, where, mod, button);
-                    vterm_mouse_move(vt, where.y, where.x, mod);
-                    vterm_mouse_button(vt, button, false, mod);
-                }
-            }
+                processMouseDown(ev, vt, view, [this] { flushOutput(); });
             break;
         case evMouseMove:
         case evMouseAuto:
         case evMouseWheel:
             if (mouseEnabled)
-            {
-                TPoint where; VTermModifier mod; int button;
-                processMouse(ev, view, where, mod, button);
-                vterm_mouse_move(vt, where.y, where.x, mod);
-                if (ev.what == evMouseWheel)
-                    vterm_mouse_button(vt, button, true, mod);
-            }
+                processMouseOther(ev, vt, view);
             break;
         default:
             handled = false;
