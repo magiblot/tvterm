@@ -6,6 +6,8 @@
 #define Uses_TDeskTop
 #include <tvision/tv.h>
 #include <string_view>
+#include <utility>
+#include <new>
 
 inline ushort execDialog(TDialog *d)
 {
@@ -75,5 +77,68 @@ inline constexpr uchar swapRedBlue(uchar c)
     uchar t3 = (c & 0b0000'1010);
     return t1 | t2 | t3;
 }
+
+template <class T>
+union managed_lifetime
+{
+private:
+
+    T object;
+
+public:
+
+    // No-op constructor and destructor.
+    constexpr managed_lifetime() {};
+    ~managed_lifetime() {};
+
+    // On-demand construction and destruction.
+    template<class... Args>
+    void construct(Args&&... args)
+    {
+        new ((void *) &object) T(std::forward<Args>(args)...);
+    }
+
+    void destroy()
+    {
+        object.~T();
+    }
+
+    // Don't even try (it would require knowing whether the object is alive or not).
+    managed_lifetime& operator=(managed_lifetime&&) = delete;
+    managed_lifetime& operator=(const managed_lifetime&) = delete;
+
+    // Accessors.
+    constexpr operator T&()
+    {
+        return object;
+    }
+
+    constexpr operator const T&() const
+    {
+        return object;
+    }
+
+    constexpr T* operator->()
+    {
+        return &object;
+    }
+
+    constexpr const T* operator->() const
+    {
+        return &object;
+    }
+
+    constexpr T& get()
+    {
+        return operator T&();
+    }
+
+    constexpr const T& get() const
+    {
+        return operator T&();
+    }
+
+
+};
 
 #endif // TVTERM_UTIL_H

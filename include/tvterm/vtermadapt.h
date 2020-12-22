@@ -5,6 +5,7 @@
 
 #include <tvterm/ptylisten.h>
 #include <tvterm/vterm.h>
+#include <tvterm/util.h>
 #include <tvterm/pty.h>
 #include <utility>
 #include <vector>
@@ -28,8 +29,8 @@ struct TVTermAdapter
     struct VTerm *vt;
     struct VTermState *state;
     struct VTermScreen *vts;
-    PTY pty;
-    PTYListener listener;
+    managed_lifetime<PTY> pty;
+    managed_lifetime<PTYListener> listener;
     bool pending;
     bool resizing;
     bool mouseEnabled;

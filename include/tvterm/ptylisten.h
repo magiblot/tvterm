@@ -10,27 +10,16 @@ struct PTYListener : public FdInputStrategy
 
     TVTermAdapter &vterm;
 
-    PTYListener(TVTermAdapter &vterm);
-    void listen(int fd);
-    void disconnect();
+    PTYListener(TVTermAdapter &vterm, int fd);
 
     bool getEvent(TEvent &ev) override;
 
 };
 
-inline PTYListener::PTYListener(TVTermAdapter &vterm) :
+inline PTYListener::PTYListener(TVTermAdapter &vterm, int fd) :
     vterm(vterm)
 {
-}
-
-inline void PTYListener::listen(int fd)
-{
     addListener(this, fd);
-}
-
-inline void PTYListener::disconnect()
-{
-    deleteListener(this);
 }
 
 #endif // TVTERM_PTYLISTEN_H

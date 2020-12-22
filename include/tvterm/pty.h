@@ -29,26 +29,17 @@ class PTY
     static void initTermios(struct termios *);
     static void initWinsize(struct winsize *, TPoint);
 
-    int master_fd {-1};
-    pid_t child_pid {-1};
-
-    PTY(int master_fd, pid_t child_pid) :
-        master_fd(master_fd),
-        child_pid(child_pid)
-    {
-    }
+    int master_fd;
+    pid_t child_pid;
 
 public:
 
-    PTY() = default;
-    PTY& operator=(const PTY &) = delete;
-    PTY& operator=(PTY &&) = default;
-
     template <class Func>
-    static PTY create(TPoint, Func &&);
-    void destroy();
+    PTY(TPoint, Func &&);
+    ~PTY();
 
     int getMaster() const;
+    bool isValid() const;
     bool getSize(TPoint &) const;
     bool setSize(TPoint) const;
     bool setBlocking(bool) const;
@@ -58,13 +49,12 @@ public:
 };
 
 template <class Func>
-inline PTY PTY::create(TPoint size, Func &&func)
+inline PTY::PTY(TPoint size, Func &&func)
 {
     struct termios termios; initTermios(&termios);
     struct winsize winsize; initWinsize(&winsize, size);
 
-    int master_fd;
-    pid_t child_pid = forkpty(&master_fd, nullptr, &termios, &winsize);
+    child_pid = forkpty(&master_fd, nullptr, &termios, &winsize);
     if (child_pid == 0)
     {
         // Restore the ISIG signals back to defaults
@@ -80,14 +70,20 @@ inline PTY PTY::create(TPoint size, Func &&func)
         execvp(shell, args);
         dout << "Child: cannot exec " << shell << ": " << strerror(errno)
              << endl << flush;
+        // Don't clean up resources, because we didn't initiate them
+        // (e.g. terminal state).
         _exit(1);
     }
-    return {master_fd, child_pid};
 }
 
 inline int PTY::getMaster() const
 {
     return master_fd;
+}
+
+inline bool PTY::isValid() const
+{
+    return child_pid != -1;
 }
 
 #endif // TVTERM_PTY_H
