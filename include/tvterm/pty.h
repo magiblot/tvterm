@@ -9,6 +9,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <signal.h>
+#include <sstream>
 #include <cstdlib>
 
 #if defined(__FreeBSD__)
@@ -39,7 +40,6 @@ public:
     ~PTY();
 
     int getMaster() const;
-    bool isValid() const;
     bool getSize(TPoint &) const;
     bool setSize(TPoint) const;
     bool setBlocking(bool) const;
@@ -74,16 +74,17 @@ inline PTY::PTY(TPoint size, Func &&func)
         // (e.g. terminal state).
         _exit(1);
     }
+    else if (child_pid == -1)
+    {
+        std::stringstream ss;
+        ss << "Unable to create pseudoterminal: 'forkpty' error: " << strerror(errno) << ".";
+        throw ss.str();
+    }
 }
 
 inline int PTY::getMaster() const
 {
     return master_fd;
-}
-
-inline bool PTY::isValid() const
-{
-    return child_pid != -1;
 }
 
 #endif // TVTERM_PTY_H

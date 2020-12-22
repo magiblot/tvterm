@@ -1,5 +1,6 @@
 #define Uses_TFrame
 #define Uses_TEvent
+#define Uses_TStaticText
 #include <tvision/tv.h>
 
 #include <tvterm/vtermwnd.h>
@@ -22,7 +23,16 @@ TVTermWindow::TVTermWindow(const TRect &bounds) :
     setState(sfShadow, False);
     {
         TRect r = getExtent().grow(-1, -1);
-        TView *vt = new TVTermView(r, *this);
+        TView *vt;
+        try
+        {
+            vt = new TVTermView(r, *this);
+        }
+        catch (std::string err)
+        {
+            vt = new TStaticText(r, err);
+            vt->growMode = gfGrowHiX | gfGrowHiY;
+        }
         insert(vt);
     }
 }

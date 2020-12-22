@@ -138,7 +138,6 @@ public:
         return operator T&();
     }
 
-
 };
 
 #endif // TVTERM_UTIL_H

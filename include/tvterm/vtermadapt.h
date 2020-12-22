@@ -29,16 +29,17 @@ struct TVTermAdapter
     struct VTerm *vt;
     struct VTermState *state;
     struct VTermScreen *vts;
-    managed_lifetime<PTY> pty;
-    managed_lifetime<PTYListener> listener;
+    PTY pty;
+    PTYListener listener;
     bool pending;
-    bool resizing;
     bool mouseEnabled;
     bool altScreenEnabled;
     std::vector<char> outbuf;
     LineStack linestack;
 
     static const VTermScreenCallbacks callbacks;
+
+    static void childActions();
 
     TVTermAdapter(TVTermView &);
     ~TVTermAdapter();

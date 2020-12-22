@@ -274,10 +274,17 @@ namespace vtermoutput
 
 } // namespace vtermoutput
 
+void TVTermAdapter::childActions()
+{
+    setenv("TERM", "xterm-16color", 1);
+    unsetenv("COLORTERM");
+}
+
 TVTermAdapter::TVTermAdapter(TVTermView &view) :
     view(view),
+    pty(view.size, childActions),
+    listener(*this, pty.getMaster()),
     pending(false),
-    resizing(false),
     mouseEnabled(false),
     altScreenEnabled(false)
 {
@@ -292,27 +299,10 @@ TVTermAdapter::TVTermAdapter(TVTermView &view) :
     vterm_screen_set_callbacks(vts, &callbacks, this);
 
     vterm_output_set_callback(vt, static_wrap<&TVTermAdapter::writeOutput>, this);
-
-    pty.construct(view.size,
-        []() {
-            setenv("TERM", "xterm-16color", 1);
-            unsetenv("COLORTERM");
-        }
-    );
-    if (!pty->isValid())
-    {
-        TProgram::application->suspend();
-        dout << "Cannot forkpty: " << strerror(errno)
-             << endl << flush;
-        abort();
-    }
-    listener.construct(*this, pty->getMaster());
 }
 
 TVTermAdapter::~TVTermAdapter()
 {
-    listener.destroy();
-    pty.destroy();
     vterm_free(vt);
 }
 
@@ -322,12 +312,12 @@ void TVTermAdapter::read()
     {
         pending = false;
         updateParentSize();
-        pty->setBlocking(false);
+        pty.setBlocking(false);
         char buf[4096];
         ssize_t size;
-        while ((size = pty->read(buf)) > 0)
+        while ((size = pty.read(buf)) > 0)
         {
-            dout << pty->getMaster() << ": read " << size << " bytes." << endl;
+            dout << pty.getMaster() << ": read " << size << " bytes." << endl;
             vterm_input_write(vt, buf, size);
         }
         updateParentSize();
@@ -378,7 +368,7 @@ void TVTermAdapter::handleEvent(TEvent &ev)
 
 void TVTermAdapter::flushOutput()
 {
-    pty->write({outbuf.data(), outbuf.size()});
+    pty.write({outbuf.data(), outbuf.size()});
     outbuf.resize(0);
 }
 
@@ -400,14 +390,14 @@ void TVTermAdapter::updateParentSize()
 TPoint TVTermAdapter::getChildSize() const
 {
     TPoint s;
-    pty->getSize(s);
+    pty.getSize(s);
     return s;
 }
 
 void TVTermAdapter::setChildSize(TPoint s) const
 {
     if (s != getChildSize())
-        pty->setSize(s);
+        pty.setSize(s);
 }
 
 void TVTermAdapter::setParentSize(TPoint s)
@@ -462,7 +452,7 @@ int TVTermAdapter::damage(VTermRect rect)
     }
     else
     {
-        dout << pty->getMaster() << ": no draw buffer!" << endl;
+        dout << pty.getMaster() << ": no draw buffer!" << endl;
         return false;
     }
 }
