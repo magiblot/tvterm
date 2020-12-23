@@ -48,6 +48,7 @@ TVTermApp::TVTermApp() :
 {
     disableCommands(tileCmds);
     disableCommands(TVTermWindow::focusedCmds);
+    newTerm();
 }
 
 TMenuBar *TVTermApp::initMenuBar(TRect r)
