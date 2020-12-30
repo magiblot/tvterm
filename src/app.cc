@@ -8,6 +8,7 @@
 #define Uses_TEvent
 #define Uses_TChDirDialog
 #define Uses_TDeskTop
+#define Uses_MsgBox
 #include <tvision/tv.h>
 
 #include <tvterm/app.h>
@@ -132,6 +133,25 @@ void TVTermApp::handleEvent(TEvent &event)
     }
     if (handled)
         clearEvent(event);
+}
+
+
+
+Boolean TVTermApp::valid(ushort command)
+{
+    if (command == cmQuit)
+    {
+        auto isTerm =
+            [] (TView *p, void *) -> Boolean { return message(p, evCommand, cmIsTerm, nullptr); };
+        if (deskTop->firstThat(isTerm, nullptr))
+        {
+            return messageBox( "There are open terminal windows.\n"
+                               "Do you still want to quit?",
+                               mfConfirmation | mfYesButton | mfNoButton ) == cmYes;
+        }
+        return True;
+    }
+    return TApplication::valid(command);
 }
 
 void TVTermApp::idle()

@@ -11,6 +11,7 @@ enum : ushort {
     // Commands that cannot be deactivated.
     cmNewTerm           = 1000,
     cmVTermReadable,
+    cmIsTerm,
 };
 
 enum : ushort {

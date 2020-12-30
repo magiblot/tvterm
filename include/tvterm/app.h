@@ -21,6 +21,7 @@ struct TVTermApp : public TApplication
 
     void getEvent(TEvent &event) override;
     void handleEvent(TEvent &event) override;
+    Boolean valid(ushort command) override;
     void idle() override;
 
     // Command handlers

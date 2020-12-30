@@ -57,12 +57,26 @@ void TVTermWindow::setTitle(std::string_view text)
 
 void TVTermWindow::handleEvent(TEvent &ev)
 {
-    if (ev.what == evCommand && ev.message.command == cmGrabInput)
+    bool handled = true;
+    switch (ev.what)
     {
-        if (helpCtx != hcInputGrabbed)
-            execute();
-        clearEvent(ev);
+        case evCommand:
+            switch (ev.message.command)
+            {
+                case cmGrabInput:
+                    if (helpCtx != hcInputGrabbed)
+                        execute();
+                    break;
+                case cmIsTerm:
+                    ev.message.infoPtr = this;
+                    break;
+                default: handled = false; break;
+            }
+            break;
+        default: handled = false; break;
     }
+    if (handled)
+        clearEvent(ev);
     else
         TWindow::handleEvent(ev);
 }
