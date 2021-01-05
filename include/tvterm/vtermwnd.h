@@ -10,6 +10,8 @@
 struct TVTermWindow : public TWindow
 {
 
+    static TFrame *initFrame(TRect);
+
     TVTermWindow(const TRect &bounds);
 
     std::string_view termTitle;

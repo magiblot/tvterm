@@ -5,6 +5,7 @@
 
 #include <tvterm/vtermwnd.h>
 #include <tvterm/vtermview.h>
+#include <tvterm/vtermframe.h>
 #include <tvterm/cmds.h>
 
 TCommandSet TVTermWindow::focusedCmds = []()
@@ -15,26 +16,33 @@ TCommandSet TVTermWindow::focusedCmds = []()
     return ts;
 }();
 
+TFrame *TVTermWindow::initFrame(TRect bounds)
+{
+    return new TVTermFrame(bounds);
+}
+
 TVTermWindow::TVTermWindow(const TRect &bounds) :
     TWindowInit(&TVTermWindow::initFrame),
     TWindow(bounds, nullptr, wnNoNumber)
 {
     options |= ofTileable;
     setState(sfShadow, False);
+    TVTermView *vt = nullptr;
     {
         TRect r = getExtent().grow(-1, -1);
-        TView *vt;
+        TView *v;
         try
         {
-            vt = new TVTermView(r, *this);
+            v = vt = new TVTermView(r, *this);
         }
         catch (std::string err)
         {
-            vt = new TStaticText(r, err);
-            vt->growMode = gfGrowHiX | gfGrowHiY;
+            v = new TStaticText(r, err);
+            v->growMode = gfGrowHiX | gfGrowHiY;
         }
-        insert(vt);
+        insert(v);
     }
+    ((TVTermFrame *) frame)->setTerm(vt);
 }
 
 void TVTermWindow::setTitle(std::string_view text)
