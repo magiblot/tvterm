@@ -235,18 +235,12 @@ namespace vtermoutput
              bg = cell.bg;
         if ( VTERM_COLOR_IS_DEFAULT_FG(&fg) ||
              fg.type != VTERM_COLOR_INDEXED )
-        {
-            attr.fgSet(0x7); // This shouldn't be necessary. TVision FIXME.
             attr.fgDefault = 1;
-        }
         else
             attr.fgSet(swapRedBlue(fg.indexed.idx));
         if ( VTERM_COLOR_IS_DEFAULT_BG(&bg) ||
              bg.type != VTERM_COLOR_INDEXED )
-        {
-            attr.bgSet(0x0);
             attr.bgDefault = 1;
-        }
         else
             attr.bgSet(swapRedBlue(bg.indexed.idx));
         attr.bold = cell.attrs.bold;

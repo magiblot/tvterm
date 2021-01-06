@@ -50,13 +50,10 @@ void TVTermWindow::setTitle(std::string_view text)
     std::string_view tail = (helpCtx == hcInputGrabbed)
                           ? " (Input Grab)"
                           : "";
-    // For some unknown reason the last character is eaten up by TFrame...
-    // We'll find out why later. Let's work around it for the time being.
-    char *str = new char[text.size() + tail.size() + 2];
+    char *str = new char[text.size() + tail.size() + 1];
     memcpy(str, text.data(), text.size());
     memcpy(str + text.size(), tail.data(), tail.size());
-    str[text.size() + tail.size()] = ' ';
-    str[text.size() + tail.size() + 1] = '\0';
+    str[text.size() + tail.size()] = '\0';
     termTitle = {str, text.size()};
     delete[] title; // 'text' could point to 'title', so don't free too early.
     title = str;
