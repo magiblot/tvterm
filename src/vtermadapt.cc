@@ -316,7 +316,6 @@ void TVTermAdapter::read()
         }
         updateParentSize();
         vterm_screen_flush_damage(vts);
-        view.window.drawView();
     }
 }
 
@@ -442,6 +441,8 @@ int TVTermAdapter::damage(VTermRect rect)
                 convText(cells, ci, vts, {x, y});
                 x += cell.width;
             }
+            TPoint p = view.origin + TPoint {r.a.x, y};
+            view.owner->writeLine(p.x, p.y, cells.size(), 1, cells.data());
         }
         return true;
     }
