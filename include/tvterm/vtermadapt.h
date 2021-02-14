@@ -56,6 +56,7 @@ struct TVTermAdapter
 
     void damageAll();
 
+    TRect vtermExtent() const;
     VTermScreenCell getDefaultCell() const;
 
     void writeOutput(const char *data, size_t size);
@@ -69,6 +70,13 @@ struct TVTermAdapter
     int sb_popline(int cols, VTermScreenCell *cells);
 
 };
+
+inline TRect TVTermAdapter::vtermExtent() const
+{
+    TPoint s;
+    vterm_get_size(vt, &s.y, &s.x);
+    return {0, 0, s.x, s.y};
+}
 
 inline VTermScreenCell TVTermAdapter::getDefaultCell() const
 {

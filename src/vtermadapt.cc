@@ -425,10 +425,11 @@ void TVTermAdapter::writeOutput(const char *data, size_t size)
 int TVTermAdapter::damage(VTermRect rect)
 {
     using namespace vtermoutput;
-    if (view.owner->buffer)
+    if (view.owner && view.owner->buffer)
     {
         TRect r(rect.start_col, rect.start_row, rect.end_col, rect.end_row);
         r.intersect(view.getExtent());
+        r.intersect(vtermExtent());
         for (int y = r.a.y; y < r.b.y; ++y)
         {
             TSpan<TScreenCell> cells(&view.at(y, r.a.x), r.b.x - r.a.x);
