@@ -428,7 +428,6 @@ int TVTermAdapter::damage(VTermRect rect)
     {
         TRect r(rect.start_col, rect.start_row, rect.end_col, rect.end_row);
         r.intersect(view.getExtent());
-        r.intersect(vtermExtent());
         for (int y = r.a.y; y < r.b.y; ++y)
         {
             TSpan<TScreenCell> cells(&view.at(y, r.a.x), r.b.x - r.a.x);
@@ -436,10 +435,19 @@ int TVTermAdapter::damage(VTermRect rect)
             for (int x = r.a.x; x < r.b.x;)
             {
                 VTermScreenCell cell;
-                vterm_screen_get_cell(vts, {y, x}, &cell);
-                convAttr(cells[ci], cell);
-                convText(cells, ci, vts, {x, y});
-                x += cell.width;
+                if (vterm_screen_get_cell(vts, {y, x}, &cell))
+                {
+                    convAttr(cells[ci], cell);
+                    convText(cells, ci, vts, {x, y});
+                    x += cell.width;
+                }
+                else
+                {
+                    // The size in 'vt' and 'vts' is sometimes mismatched and
+                    // the cell access fails.
+                    cells[ci] = {};
+                    ++ci, ++x;
+                }
             }
             TPoint p = view.origin + TPoint {r.a.x, y};
             view.owner->writeLine(p.x, p.y, cells.size(), 1, cells.data());
