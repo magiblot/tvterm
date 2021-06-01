@@ -227,27 +227,47 @@ namespace vterminput
 namespace vtermoutput
 {
 
-    static void convAttr( TScreenCell &dst,
+    static TColorRGB VTermRGBtoRGB(VTermColor c)
+    {
+        return {c.rgb.red, c.rgb.green, c.rgb.blue};
+    }
+
+    static void convAttr( TColorAttr &dst,
                           const VTermScreenCell &cell )
     {
-        TCellAttribs attr {};
-        auto fg = cell.fg,
-             bg = cell.bg;
-        if ( VTERM_COLOR_IS_DEFAULT_FG(&fg) ||
-             fg.type != VTERM_COLOR_INDEXED )
-            attr.fgDefault = 1;
-        else
-            attr.fgSet(swapRedBlue(fg.indexed.idx));
-        if ( VTERM_COLOR_IS_DEFAULT_BG(&bg) ||
-             bg.type != VTERM_COLOR_INDEXED )
-            attr.bgDefault = 1;
-        else
-            attr.bgSet(swapRedBlue(bg.indexed.idx));
-        attr.bold = cell.attrs.bold;
-        attr.underline = !!cell.attrs.underline;
-        attr.italic = cell.attrs.italic;
-        attr.reverse = cell.attrs.reverse;
-        ::setAttr(dst, attr);
+        auto &vt_fg = cell.fg,
+             &vt_bg = cell.bg;
+        auto &vt_attr = cell.attrs;
+        TColorDesired fg, bg;
+        // I prefer '{}', but GCC doesn't optimize it very well.
+        memset(&fg, 0, sizeof(fg));
+        memset(&bg, 0, sizeof(bg));
+
+        if (!VTERM_COLOR_IS_DEFAULT_FG(&vt_fg))
+        {
+            if (VTERM_COLOR_IS_INDEXED(&vt_fg))
+                fg = TColorXTerm(vt_fg.indexed.idx);
+            else if (VTERM_COLOR_IS_RGB(&vt_fg))
+                fg = VTermRGBtoRGB(vt_fg);
+        }
+
+        if (!VTERM_COLOR_IS_DEFAULT_BG(&vt_bg))
+        {
+            if (VTERM_COLOR_IS_INDEXED(&vt_bg))
+                bg = TColorXTerm(vt_bg.indexed.idx);
+            else if (VTERM_COLOR_IS_RGB(&vt_bg))
+                bg = VTermRGBtoRGB(vt_bg);
+        }
+
+        ushort style =
+              (slBold & -!!vt_attr.bold)
+            | (slItalic & -!!vt_attr.italic)
+            | (slUnderline & -!!vt_attr.underline)
+            | (slBlink & -!!vt_attr.blink)
+            | (slReverse & -!!vt_attr.reverse)
+            | (slStrike & -!!vt_attr.strike)
+            ;
+        dst = {fg, bg, style};
     }
 
     static void convText( TSpan<TScreenCell> cells, size_t &ci,
@@ -270,8 +290,8 @@ namespace vtermoutput
 
 void TVTermAdapter::childActions()
 {
-    setenv("TERM", "xterm-16color", 1);
-    unsetenv("COLORTERM");
+    setenv("TERM", "xterm-256color", 1);
+    setenv("COLORTERM", "truecolor", 1);
 }
 
 TVTermAdapter::TVTermAdapter(TVTermView &view) :
@@ -437,7 +457,7 @@ int TVTermAdapter::damage(VTermRect rect)
                 VTermScreenCell cell;
                 if (vterm_screen_get_cell(vts, {y, x}, &cell))
                 {
-                    convAttr(cells[ci], cell);
+                    convAttr(cells[ci].attr, cell);
                     convText(cells, ci, vts, {x, y});
                     x += cell.width;
                 }
