@@ -21,19 +21,20 @@ TFrame *TVTermWindow::initFrame(TRect bounds)
     return new TVTermFrame(bounds);
 }
 
-TVTermWindow::TVTermWindow(const TRect &bounds) :
+TVTermWindow::TVTermWindow(const TRect &bounds, asio::io_context &io) :
     TWindowInit(&TVTermWindow::initFrame),
-    TWindow(bounds, nullptr, wnNoNumber)
+    TWindow(bounds, nullptr, wnNoNumber),
+    view(nullptr)
 {
     options |= ofTileable;
+    eventMask |= evBroadcast;
     setState(sfShadow, False);
-    TVTermView *vt = nullptr;
     {
         TRect r = getExtent().grow(-1, -1);
         TView *v;
         try
         {
-            v = vt = new TVTermView(r, *this);
+            v = view = new TVTermView(r, *this, io);
         }
         catch (std::string err)
         {
@@ -42,7 +43,13 @@ TVTermWindow::TVTermWindow(const TRect &bounds) :
         }
         insert(v);
     }
-    ((TVTermFrame *) frame)->setTerm(vt);
+    ((TVTermFrame *) frame)->setTerm(view);
+}
+
+void TVTermWindow::shutDown()
+{
+    view = nullptr;
+    TWindow::shutDown();
 }
 
 void TVTermWindow::setTitle(std::string_view text)
@@ -60,30 +67,64 @@ void TVTermWindow::setTitle(std::string_view text)
     frame->drawView();
 }
 
+bool TVTermWindow::ptyClosed() const
+{
+    return view && view->vterm.pty.closed();
+}
+
 void TVTermWindow::handleEvent(TEvent &ev)
 {
-    bool handled = true;
     switch (ev.what)
     {
         case evCommand:
             switch (ev.message.command)
             {
                 case cmGrabInput:
-                    if (helpCtx != hcInputGrabbed)
-                        execute();
+                    if (helpCtx != hcInputGrabbed && owner)
+                    {
+                        owner->execView(this);
+                        clearEvent(ev);
+                    }
                     break;
                 case cmIsTerm:
                     ev.message.infoPtr = this;
+                    clearEvent(ev);
                     break;
-                default: handled = false; break;
+                case cmClose:
+                case cmReleaseInput:
+                    if (state & sfModal)
+                    {
+                        endModal(cmCancel);
+                        if (ev.message.command == cmClose)
+                            putEvent(ev);
+                        clearEvent(ev);
+                    }
+                    break;
+                case cmCheckPTYClosed:
+                    // We handle this below for any event.
+                    break;
             }
             break;
-        default: handled = false; break;
+        case evMouseDown:
+            if ((state & sfModal) && !mouseInView(ev.mouse.where))
+            {
+                endModal(cmCancel);
+                putEvent(ev);
+                clearEvent(ev);
+            }
+            break;
     }
-    if (handled)
-        clearEvent(ev);
-    else
-        TWindow::handleEvent(ev);
+    if (ptyClosed())
+    {
+        if (state & sfModal)
+            endModal(cmCancel);
+        else
+        {
+            close();
+            return;
+        }
+    }
+    TWindow::handleEvent(ev);
 }
 
 void TVTermWindow::setState(ushort aState, Boolean enable)
@@ -105,21 +146,7 @@ ushort TVTermWindow::execute()
     helpCtx = hcInputGrabbed;
     // Update title.
     setTitle(termTitle);
-    while (true)
-    {
-        TEvent ev;
-        getEvent(ev);
-        if ( (ev.what == evCommand && ev.message.command == cmClose) ||
-             (ev.what == evMouseDown && !mouseInView(ev.mouse.where)) )
-        {
-            putEvent(ev);
-            break;
-        }
-        else if (ev.what == evCommand && ev.message.command == cmReleaseInput)
-            break;
-        else
-            handleEvent(ev);
-    }
+    TWindow::execute();
     // Restore help context.
     helpCtx = hc;
     // Restore title.

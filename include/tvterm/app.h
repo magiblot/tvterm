@@ -5,12 +5,17 @@
 #define Uses_TCommandSet
 #include <tvision/tv.h>
 
+#include <tvterm/io.h>
+
 class TVTermDesk;
 
 struct TVTermApp : public TApplication
 {
     static TVTermApp *app;
     static TCommandSet tileCmds;
+
+    IOContext io;
+    bool checkTerms;
 
     TVTermApp();
     static TMenuBar* initMenuBar(TRect r);
@@ -19,7 +24,6 @@ struct TVTermApp : public TApplication
 
     TVTermDesk* getDeskTop();
 
-    void getEvent(TEvent &event) override;
     void handleEvent(TEvent &event) override;
     Boolean valid(ushort command) override;
     void idle() override;

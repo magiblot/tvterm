@@ -1,25 +1,33 @@
 #ifndef TVTERM_PTYLISTEN_H
 #define TVTERM_PTYLISTEN_H
 
-#include <tvision/internal/platform.h>
+#define Uses_TArc
+#include <tvision/tv.h>
+#include <tvision/internal/mutex.h>
+
+#include <tvterm/io.h>
 
 struct TVTermAdapter;
 
-struct PTYListener : public FdInputStrategy
+using stream_descriptor = asio::posix::stream_descriptor;
+
+struct PTYListener
 {
 
     TVTermAdapter &vterm;
+    stream_descriptor descriptor;
+    TArc<TMutex<bool>> mAlive;
+    enum { maxEmpty = 5 };
+    int emptyCount;
 
-    PTYListener(TVTermAdapter &vterm, int fd);
+    PTYListener(TVTermAdapter &vterm, asio::io_context &io, int fd);
+    ~PTYListener();
 
-    bool getEvent(TEvent &ev) override;
+    void asyncWait();
+    bool streamNotEmpty();
+    void onReady(const asio::error_code &error);
 
 };
 
-inline PTYListener::PTYListener(TVTermAdapter &vterm, int fd) :
-    vterm(vterm)
-{
-    addListener(this, fd);
-}
 
 #endif // TVTERM_PTYLISTEN_H

@@ -12,6 +12,7 @@ enum : ushort {
     cmNewTerm           = 1000,
     cmVTermReadable,
     cmIsTerm,
+    cmCheckPTYClosed,
 };
 
 enum : ushort {

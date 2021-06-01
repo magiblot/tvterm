@@ -9,6 +9,7 @@
 #define Uses_TChDirDialog
 #define Uses_TDeskTop
 #define Uses_MsgBox
+#define Uses_TTimer
 #include <tvision/tv.h>
 
 #include <tvterm/app.h>
@@ -45,7 +46,8 @@ TVTermApp::TVTermApp() :
     TProgInit( &TVTermApp::initStatusLine,
                &TVTermApp::initMenuBar,
                &TVTermApp::initDeskTop
-             )
+             ),
+    checkTerms(false)
 {
     disableCommands(tileCmds);
     disableCommands(TVTermWindow::focusedCmds);
@@ -99,18 +101,17 @@ TDeskTop *TVTermApp::initDeskTop( TRect r )
     return new TVTermDesk(r);
 }
 
-void TVTermApp::getEvent(TEvent &ev)
-{
-    TApplication::getEvent(ev);
-    if (ev.what == evCommand && ev.message.command == cmVTermReadable)
-    {
-        ((TVTermAdapter *) ev.message.infoPtr)->read();
-        clearEvent(ev);
-    }
-}
-
 void TVTermApp::handleEvent(TEvent &event)
 {
+    if (checkTerms)
+    {
+        checkTerms = false;
+        // We do this here because it ensures no nested event loops are ongoing
+        // (e.g. TView::keyEvent(), TView::mouseEvent()). For example, when
+        // a terminal connection closes while resizing its window.
+        message(this, evBroadcast, cmCheckPTYClosed, nullptr);
+    }
+
     TApplication::handleEvent(event);
     bool handled = true;
     switch (event.what)
@@ -135,8 +136,6 @@ void TVTermApp::handleEvent(TEvent &event)
         clearEvent(event);
 }
 
-
-
 Boolean TVTermApp::valid(ushort command)
 {
     if (command == cmQuit)
@@ -157,6 +156,7 @@ Boolean TVTermApp::valid(ushort command)
 void TVTermApp::idle()
 {
     TApplication::idle();
+    checkTerms = true;
     {
         // Enable or disable the cmTile and cmCascade commands.
         auto isTileable =
@@ -173,7 +173,7 @@ void TVTermApp::idle()
 void TVTermApp::newTerm()
 {
     TRect r = deskTop->getExtent();
-    TVTermWindow *vt = new TVTermWindow(r);
+    TVTermWindow *vt = new TVTermWindow(r, io);
     vt = (TVTermWindow *) validView(vt);
     if (vt)
         deskTop->insert(vt);

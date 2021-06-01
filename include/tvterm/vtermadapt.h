@@ -7,6 +7,7 @@
 #include <tvterm/vterm.h>
 #include <tvterm/util.h>
 #include <tvterm/pty.h>
+#include <tvterm/io.h>
 #include <utility>
 #include <vector>
 #include <memory>
@@ -19,6 +20,8 @@ struct TVTermAdapter
 
     struct LineStack
     {
+        enum { maxSize = 10000 };
+
         std::vector<std::pair<std::unique_ptr<const VTermScreenCell[]>, size_t>> stack;
         void push(size_t cols, const VTermScreenCell *cells);
         bool pop(const TVTermAdapter &vterm, size_t cols, VTermScreenCell *cells);
@@ -31,7 +34,6 @@ struct TVTermAdapter
     struct VTermScreen *vts;
     PTY pty;
     PTYListener listener;
-    bool pending;
     bool mouseEnabled;
     bool altScreenEnabled;
     std::vector<char> outbuf;
@@ -41,7 +43,7 @@ struct TVTermAdapter
 
     static void childActions();
 
-    TVTermAdapter(TVTermView &);
+    TVTermAdapter(TVTermView &, asio::io_context &);
     ~TVTermAdapter();
 
     void read();

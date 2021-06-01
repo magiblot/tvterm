@@ -5,10 +5,11 @@
 #include <tvterm/vtermview.h>
 #include <tvterm/vtermwnd.h>
 
-TVTermView::TVTermView(const TRect &bounds, TVTermWindow &window) :
+TVTermView::TVTermView( const TRect &bounds, TVTermWindow &window,
+                        asio::io_context &io ) :
     TView(bounds),
     window(window),
-    vterm(*this)
+    vterm(*this, io)
 {
     growMode = gfGrowHiX | gfGrowHiY;
     options |= ofSelectable | ofFirstClick;

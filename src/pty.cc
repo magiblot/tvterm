@@ -1,11 +1,15 @@
 #include <tvterm/pty.h>
 #include <fcntl.h>
 
-PTY::~PTY()
+void PTY::close()
 {
-    close(master_fd);
-    kill(child_pid, SIGINT);
-    kill(child_pid, SIGTERM);
+    if (master_fd != -1)
+    {
+        ::close(master_fd);
+        ::kill(child_pid, SIGINT);
+        ::kill(child_pid, SIGTERM);
+        master_fd = -1;
+    }
 }
 
 bool PTY::getSize(TPoint &size) const

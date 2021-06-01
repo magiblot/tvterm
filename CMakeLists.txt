@@ -23,7 +23,7 @@ find_library(VTERM vterm)
 find_library(UTIL util)
 add_subdirectory(deps/tvision)
 
-target_link_libraries(${PROJECT_NAME} tvision ${VTERM} ${UTIL})
+target_link_libraries(${PROJECT_NAME} tvision ${VTERM} ${UTIL} pthread)
 
 # Build optimization
 

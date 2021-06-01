@@ -6,6 +6,7 @@
 #include <tvision/tv.h>
 
 #include <tvterm/vtermadapt.h>
+#include <tvterm/io.h>
 
 struct TVTermWindow;
 
@@ -15,7 +16,7 @@ struct TVTermView : public TView
     TVTermWindow &window;
     TVTermAdapter vterm;
 
-    TVTermView(const TRect &bounds, TVTermWindow &window);
+    TVTermView(const TRect &bounds, TVTermWindow &window, asio::io_context &io);
 
     TScreenCell& at(int y, int x);
     void changeBounds(const TRect& bounds) override;

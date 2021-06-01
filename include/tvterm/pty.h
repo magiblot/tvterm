@@ -3,6 +3,7 @@
 
 #define Uses_TPoint
 #include <tvision/tv.h>
+#include <tvision/compat/iostream.h>
 
 #include <tvterm/debug.h>
 #include <tvterm/util.h>
@@ -45,6 +46,8 @@ public:
     bool setBlocking(bool) const;
     ssize_t read(TSpan<char>) const;
     ssize_t write(TSpan<const char>) const;
+    void close();
+    bool closed() const;
 
 };
 
@@ -82,9 +85,19 @@ inline PTY::PTY(TPoint size, Func &&func)
     }
 }
 
+inline PTY::~PTY()
+{
+    close();
+}
+
 inline int PTY::getMaster() const
 {
     return master_fd;
+}
+
+inline bool PTY::closed() const
+{
+    return master_fd == -1;
 }
 
 #endif // TVTERM_PTY_H

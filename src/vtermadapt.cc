@@ -294,11 +294,10 @@ void TVTermAdapter::childActions()
     setenv("COLORTERM", "truecolor", 1);
 }
 
-TVTermAdapter::TVTermAdapter(TVTermView &view) :
+TVTermAdapter::TVTermAdapter(TVTermView &view, asio::io_context &io) :
     view(view),
     pty(view.size, childActions),
-    listener(*this, pty.getMaster()),
-    pending(false),
+    listener(*this, io, pty.getMaster()),
     mouseEnabled(false),
     altScreenEnabled(false)
 {
@@ -311,6 +310,8 @@ TVTermAdapter::TVTermAdapter(TVTermView &view) :
     vts = vterm_obtain_screen(vt);
     vterm_screen_enable_altscreen(vts, true);
     vterm_screen_set_callbacks(vts, &callbacks, this);
+    vterm_screen_set_damage_merge(vts, VTERM_DAMAGE_SCROLL);
+    vterm_screen_reset(vts, true);
 
     vterm_output_set_callback(vt, static_wrap<&TVTermAdapter::writeOutput>, this);
 }
@@ -322,21 +323,17 @@ TVTermAdapter::~TVTermAdapter()
 
 void TVTermAdapter::read()
 {
-    if (pending)
+    updateParentSize();
+    pty.setBlocking(false);
+    char buf[4096];
+    ssize_t size;
+    while ((size = pty.read(buf)) > 0)
     {
-        pending = false;
-        updateParentSize();
-        pty.setBlocking(false);
-        char buf[4096];
-        ssize_t size;
-        while ((size = pty.read(buf)) > 0)
-        {
-            dout << pty.getMaster() << ": read " << size << " bytes." << endl;
-            vterm_input_write(vt, buf, size);
-        }
-        updateParentSize();
-        vterm_screen_flush_damage(vts);
+        dout << pty.getMaster() << ": read " << size << " bytes." << endl;
+        vterm_input_write(vt, buf, size);
     }
+    updateParentSize();
+    vterm_screen_flush_damage(vts);
 }
 
 void TVTermAdapter::handleEvent(TEvent &ev)
@@ -544,9 +541,12 @@ int TVTermAdapter::sb_popline(int cols, VTermScreenCell *cells)
 
 void TVTermAdapter::LineStack::push(size_t cols, const VTermScreenCell *src)
 {
-    auto line = TSpan(new VTermScreenCell[cols], cols);
-    memcpy(line.data(), src, line.size_bytes());
-    stack.emplace_back(line.data(), cols);
+    if (stack.size() < maxSize)
+    {
+        auto line = TSpan(new VTermScreenCell[cols], cols);
+        memcpy(line.data(), src, line.size_bytes());
+        stack.emplace_back(line.data(), cols);
+    }
 }
 
 bool TVTermAdapter::LineStack::pop( const TVTermAdapter &vterm,
