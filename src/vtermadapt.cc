@@ -270,20 +270,33 @@ namespace vtermoutput
         dst = {fg, bg, style};
     }
 
-    static void convText( TSpan<TScreenCell> cells, size_t &ci,
-                          VTermScreen *vts, TPoint pos )
+    static void convText( TSpan<TScreenCell> cells, int x,
+                          const VTermScreenCell &vtCell )
     {
-        char text[4*VTERM_MAX_CHARS_PER_CELL];
-        VTermRect rect = {pos.y, pos.y + 1, pos.x, pos.x + 1};
-        size_t textLength = vterm_screen_get_text(vts, text, sizeof(text), rect);
-        if (!textLength)
+        if (vtCell.chars[0] == (uint32_t) -1) // Wide char trail.
         {
-            text[0] = '\0';
-            textLength = 1;
+            // Turbo Vision and libvterm may disagree on what characters
+            // are double-width. If libvterm considers a character isn't
+            // double-width but Turbo Vision does, it will manage to display it
+            // properly anyway. But, in the opposite case, we need to place a
+            // space after the double-width character.
+            if (x > 0 && !cells[x - 1].wide)
+            {
+                ::setChar(cells[x], ' ');
+                ::setAttr(cells[x], cells[x - 1].attr);
+            }
         }
-        size_t ti = 0;
-        while (TText::eat(cells, ci, {text, textLength}, ti))
-            ;
+        else
+        {
+            size_t length = 0;
+            while (vtCell.chars[length])
+                ++length;
+            TSpan<const uint32_t> text {vtCell.chars, max<size_t>(1, length)};
+            size_t ci = x, ti = 0;
+            while (TText::eat(cells, ci, text, ti))
+                ;
+        }
+
     }
 
 } // namespace vtermoutput
@@ -447,27 +460,24 @@ int TVTermAdapter::damage(VTermRect rect)
         r.intersect(view.getExtent());
         for (int y = r.a.y; y < r.b.y; ++y)
         {
-            TSpan<TScreenCell> cells(&view.at(y, r.a.x), r.b.x - r.a.x);
-            size_t ci = 0;
-            for (int x = r.a.x; x < r.b.x;)
+            TSpan<TScreenCell> cells(&view.at(y, 0), view.size.x);
+            for (int x = r.a.x; x < r.b.x; ++x)
             {
                 VTermScreenCell cell;
                 if (vterm_screen_get_cell(vts, {y, x}, &cell))
                 {
-                    convAttr(cells[ci].attr, cell);
-                    convText(cells, ci, vts, {x, y});
-                    x += cell.width;
+                    convAttr(cells[x].attr, cell);
+                    convText(cells, x, cell);
                 }
                 else
                 {
                     // The size in 'vt' and 'vts' is sometimes mismatched and
                     // the cell access fails.
-                    cells[ci] = {};
-                    ++ci, ++x;
+                    cells[x] = {};
                 }
             }
             TPoint p = view.origin + TPoint {r.a.x, y};
-            view.owner->writeLine(p.x, p.y, cells.size(), 1, cells.data());
+            view.owner->writeLine(p.x, p.y, r.b.x - r.a.x, 1, cells.data() + r.a.x);
         }
         return true;
     }
