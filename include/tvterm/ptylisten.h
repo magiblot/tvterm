@@ -6,28 +6,43 @@
 #include <tvision/internal/mutex.h>
 
 #include <tvterm/io.h>
+#include <chrono>
 
 struct TVTermAdapter;
-
-using stream_descriptor = asio::posix::stream_descriptor;
 
 struct PTYListener
 {
 
-    TVTermAdapter &vterm;
-    stream_descriptor descriptor;
-    TArc<TMutex<bool>> mAlive;
+    using clock = std::chrono::steady_clock;
+    using time_point = clock::time_point;
+
+    enum { bufSize = 4096 };
     enum { maxEmpty = 5 };
+    static constexpr auto maxReadTime = std::chrono::milliseconds(20);
+    static constexpr auto waitForFurtherDataDelay = std::chrono::milliseconds(5);
+
+    TVTermAdapter &vterm;
+    asio::posix::stream_descriptor descriptor;
+    asio::basic_waitable_timer<clock> timer;
+    TArc<TMutex<bool>> mAlive;
     int emptyCount;
 
-    PTYListener(TVTermAdapter &vterm, asio::io_context &io, int fd);
-    ~PTYListener();
+    static thread_local char localBuf alignas(4096) [bufSize];
 
-    void asyncWait();
+    PTYListener(TVTermAdapter &vterm, asio::io_context &io, int fd);
+
+    void start();
+    void stop();
+
+private:
+
     bool streamNotEmpty();
-    void onReady(const asio::error_code &error);
+    void asyncWait();
+    template <class Func>
+    void asyncReadUntil(time_point timeout, Func &&);
+    void waitHandler(const asio::error_code &error);
+    void readInput(TSpan<const char> buf, time_point limit);
 
 };
-
 
 #endif // TVTERM_PTYLISTEN_H

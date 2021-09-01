@@ -100,9 +100,6 @@ void TVTermWindow::handleEvent(TEvent &ev)
                         clearEvent(ev);
                     }
                     break;
-                case cmCheckPTYClosed:
-                    // We handle this below for any event.
-                    break;
             }
             break;
         case evMouseDown:
@@ -114,7 +111,7 @@ void TVTermWindow::handleEvent(TEvent &ev)
             }
             break;
     }
-    if (ptyClosed())
+    if (ptyClosed() && !(state & sfDragging))
     {
         if (state & sfModal)
             endModal(cmCancel);

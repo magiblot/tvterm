@@ -8,6 +8,7 @@
 #include <tvterm/vtermwnd.h>
 #include <tvterm/ptylisten.h>
 #include <tvterm/debug.h>
+#include <tvterm/cmds.h>
 #include <tvterm/pty.h>
 #include <unordered_map>
 #include <algorithm>
@@ -164,11 +165,10 @@ namespace vterminput
             if (c == '\xF0') c = ' '; // Alt+Space.
             ev.keyDown.text[0] = c;
             ev.keyDown.textLength = 1;
-            mod = VTermModifier(mod | VTERM_MOD_ALT); // TVision bug?
         }
         if (ev.keyDown.textLength)
         {
-            uint32_t c = utf8To32(ev.keyDown.asText());
+            uint32_t c = utf8To32(ev.keyDown.getText());
             vterm_keyboard_unichar(vt, c, mod);
         }
         else
@@ -179,23 +179,36 @@ namespace vterminput
         }
     }
 
-    template <class Flush>
-    static void processMouseDown(TEvent &ev, VTerm *vt, TView &view, Flush &&flush)
+    template <class OutputState, class Flush>
+    static void processMouseDown(TEvent &ev, OutputState &mVT, TView &view, Flush &&flush)
     {
+        bool mouseEnabled = false;
         do {
             TPoint where; VTermModifier mod; int button;
             convMouse(ev, view, where, mod, button);
-            vterm_mouse_move(vt, where.y, where.x, mod);
-            if (ev.what & (evMouseDown | evMouseUp | evMouseWheel))
-                vterm_mouse_button(vt, button, ev.what != evMouseUp, mod);
-            flush();
-        } while (view.mouseEvent(ev, evMouse));
+            if (mVT.get().mouseEnabled)
+                mVT.lock([&] (auto &vtState) {
+                    if ((mouseEnabled = vtState.mouseEnabled))
+                    {
+                        vterm_mouse_move(vtState.vt, where.y, where.x, mod);
+                        if (ev.what & (evMouseDown | evMouseUp | evMouseWheel))
+                            vterm_mouse_button(vtState.vt, button, ev.what != evMouseUp, mod);
+                        flush();
+                    }
+                });
+        } while (mouseEnabled && view.mouseEvent(ev, evMouse));
         if (ev.what == evMouseUp)
         {
             TPoint where; VTermModifier mod; int button;
             convMouse(ev, view, where, mod, button);
-            vterm_mouse_move(vt, where.y, where.x, mod);
-            vterm_mouse_button(vt, button, false, mod);
+            if (mVT.get().mouseEnabled)
+                mVT.lock([&] (auto &vtState) {
+                    if (vtState.mouseEnabled)
+                    {
+                        vterm_mouse_move(vtState.vt, where.y, where.x, mod);
+                        vterm_mouse_button(vtState.vt, button, false, mod);
+                    }
+                });
         }
     }
 
@@ -204,8 +217,8 @@ namespace vterminput
         TPoint where; VTermModifier mod; int button;
         convMouse(ev, view, where, mod, button);
         vterm_mouse_move(vt, where.y, where.x, mod);
-        if (ev.what == evMouseWheel)
-            vterm_mouse_button(vt, button, true, mod);
+        if (ev.what & (evMouseUp | evMouseWheel))
+            vterm_mouse_button(vt, button, ev.what != evMouseUp, mod);
     }
 
     static void wheelToArrow(TEvent &ev, VTerm *vt)
@@ -311,42 +324,60 @@ TVTermAdapter::TVTermAdapter(TVTermView &view, asio::io_context &io) :
     view(view),
     pty(view.size, childActions),
     listener(*this, io, pty.getMaster()),
-    mouseEnabled(false),
-    altScreenEnabled(false)
+    strand(io)
 {
-    vt = vterm_new(view.size.y, view.size.x);
+    auto *vt = vterm_new(view.size.y, view.size.x);
     vterm_set_utf8(vt, 1);
 
-    state = vterm_obtain_state(vt);
+    auto *state = vterm_obtain_state(vt);
     vterm_state_reset(state, true);
 
-    vts = vterm_obtain_screen(vt);
+    auto *vts = vterm_obtain_screen(vt);
     vterm_screen_enable_altscreen(vts, true);
     vterm_screen_set_callbacks(vts, &callbacks, this);
     vterm_screen_set_damage_merge(vts, VTERM_DAMAGE_SCROLL);
     vterm_screen_reset(vts, true);
 
     vterm_output_set_callback(vt, static_wrap<&TVTermAdapter::writeOutput>, this);
+
+    mVT.get().vt = vt;
+    mVT.get().state = state;
+    mVT.get().vts = vts;
+    mDisplay.get().surface.resize(view.size);
+    listener.start();
 }
 
 TVTermAdapter::~TVTermAdapter()
 {
-    vterm_free(vt);
+    listener.stop();
+    vterm_free(mVT.get().vt);
 }
 
-void TVTermAdapter::read()
+template <class Func>
+void TVTermAdapter::sendVT(Func &&func)
 {
-    updateParentSize();
-    pty.setBlocking(false);
-    char buf[4096];
-    ssize_t size;
-    while ((size = pty.read(buf)) > 0)
-    {
-        dout << pty.getMaster() << ": read " << size << " bytes." << endl;
-        vterm_input_write(vt, buf, size);
-    }
-    updateParentSize();
-    vterm_screen_flush_damage(vts);
+    asio::dispatch(strand, [mAlive=listener.mAlive, func=std::move(func)] () mutable {
+        mAlive->lock([&] (auto &alive) {
+            if (alive)
+                func();
+        });
+    });
+}
+
+void TVTermAdapter::readInput(TSpan<const char> buf)
+{
+    mVT.lock([&] (auto &vtState) {
+        vterm_input_write(vtState.vt, buf.data(), buf.size());
+    });
+}
+
+void TVTermAdapter::flushDamage()
+{
+    mVT.lock([&] (auto &vtState) {
+        mDisplay.lock([&] (auto &) {
+            vterm_screen_flush_damage(vtState.vts);
+        });
+    });
 }
 
 void TVTermAdapter::handleEvent(TEvent &ev)
@@ -358,24 +389,32 @@ void TVTermAdapter::handleEvent(TEvent &ev)
     {
         case evKeyDown:
         {
-            processKey(ev, vt);
+            sendVT([&, ev] () mutable {
+                mVT.lock([&] (auto &vtState) {
+                    processKey(ev, vtState.vt);
+                });
+            });
             break;
         }
         case evMouseDown:
-            if (mouseEnabled)
-                processMouseDown(ev, vt, view, [this] { flushOutput(); });
+            processMouseDown(ev, mVT, view, [this] { flushOutput(); });
             break;
         case evMouseWheel:
-            if (!mouseEnabled && altScreenEnabled)
-            {
-                wheelToArrow(ev, vt);
-                break;
-            }
-            // FALLTHROUGH
         case evMouseMove:
         case evMouseAuto:
-            if (mouseEnabled)
-                processMouseOther(ev, vt, view);
+        case evMouseUp:
+            sendVT([&, ev] () mutable {
+                mVT.lock([&] (auto &vtState) {
+                    if (ev.what == evMouseWheel && !vtState.mouseEnabled && vtState.altScreenEnabled)
+                        wheelToArrow(ev, vtState.vt);
+                    else if (vtState.mouseEnabled)
+                        processMouseOther(ev, vtState.vt, view);
+                });
+            });
+            break;
+        case evBroadcast:
+            if (ev.message.command == cmIdle)
+                idle();
             break;
         default:
             handled = false;
@@ -384,15 +423,48 @@ void TVTermAdapter::handleEvent(TEvent &ev)
 
     if (handled)
     {
-        flushOutput();
-        view.clearEvent(ev);
+        sendVT([&] {
+            mVT.lock([&] (auto &) {
+                flushOutput();
+            });
+        });
+        if (ev.what != evBroadcast)
+            view.clearEvent(ev);
+    }
+}
+
+void TVTermAdapter::idle()
+{
+    if (state & vtClosed)
+    {
+        pty.close();
+        state &= ~vtClosed;
+    }
+    if (state & vtUpdated)
+    {
+        view.drawView();
+        state &= ~vtUpdated;
+    }
+    if (state & vtTitleSet)
+    {
+        mVT.lock([&] (auto &vtState) {
+            auto &title = vtState.strFragBuf;
+            view.window.setTitle({title.data(), title.size()});
+        });
+        state &= ~vtTitleSet;
     }
 }
 
 void TVTermAdapter::flushOutput()
+// Pre: mVT is locked.
 {
-    pty.write({outbuf.data(), outbuf.size()});
-    outbuf.resize(0);
+    // Writing to pty could also be done asynchronously via asio, but we don't
+    // need that yet.
+    auto &writeBuf = mVT.get().writeBuf;
+    pty.setBlocking(true);
+    pty.write({writeBuf.data(), writeBuf.size()});
+    pty.setBlocking(false);
+    writeBuf.resize(0);
 }
 
 void TVTermAdapter::updateChildSize()
@@ -400,9 +472,17 @@ void TVTermAdapter::updateChildSize()
     TPoint s = view.size;
     // Signal the child.
     setChildSize(s);
-    vterm_set_size_safe(vt, s.y, s.x);
-    // This function is usually invoked during resizing.
-    // We rely on TVTermView::draw() being invoked at some point after this.
+    sendVT([&, s] {
+        mVT.lock([&] (auto &vtState) {
+            mDisplay.lock([&] (auto &dState) {
+                // We ensure that TVTermView never sees a blank surface
+                // by re-painting before changing vterm's internal state.
+                dState.surface.resize(s);
+                damageAll();
+            });
+            vterm_set_size_safe(vtState.vt, s.y, s.x);
+        });
+    });
 }
 
 void TVTermAdapter::updateParentSize()
@@ -425,42 +505,46 @@ void TVTermAdapter::setChildSize(TPoint s) const
 
 void TVTermAdapter::setParentSize(TPoint s)
 {
-    TPoint d = s - view.size;
-    if (d.x || d.y)
-    {
-        TRect r = view.window.getBounds();
-        r.b += d;
-        view.window.locate(r);
-        vterm_set_size_safe(vt, s.y, s.x);
-        vterm_screen_flush_damage(vts);
-    }
+    // TODO: Redesign this feature.
+//     TPoint d = s - view.size;
+//     if (d.x || d.y)
+//     {
+//         TRect r = view.window.getBounds();
+//         r.b += d;
+//         view.window.locate(r);
+//         vterm_set_size_safe(vt, s.y, s.x);
+//         vterm_screen_flush_damage(vts);
+//     }
 }
 
 void TVTermAdapter::damageAll()
+// Pre: mVT and mDisplay are locked
 {
-    // Redrawing this way reduces flicker.
-    // 'vterm_screen_flush_damage' would clear the window after
-    // a resize.
+    // Calling 'vterm_screen_flush_damage' instead of 'damage' would clear
+    // the window after a resize, causing blinking.
     TPoint s;
-    vterm_get_size(vt, &s.y, &s.x);
+    vterm_get_size(mVT.get().vt, &s.y, &s.x);
     damage({0, s.y, 0, s.x});
 }
 
 void TVTermAdapter::writeOutput(const char *data, size_t size)
+// Pre: mVT is locked.
 {
-    outbuf.insert(outbuf.end(), data, data + size);
+    auto &writeBuf = mVT.get().writeBuf;
+    writeBuf.insert(writeBuf.end(), data, data + size);
 }
 
 int TVTermAdapter::damage(VTermRect rect)
+// Pre: mVT and mDisplay are locked.
 {
     using namespace vtermoutput;
-    if (view.owner && view.owner->buffer)
-    {
+        auto &vts = mVT.get().vts;
+        auto &surface = mDisplay.get().surface;
         TRect r(rect.start_col, rect.start_row, rect.end_col, rect.end_row);
-        r.intersect(view.getExtent());
+        r.intersect(TRect({0, 0}, surface.size));
         for (int y = r.a.y; y < r.b.y; ++y)
         {
-            TSpan<TScreenCell> cells(&view.at(y, 0), view.size.x);
+            TSpan<TScreenCell> cells(&surface.at(y, 0), surface.size.x);
             for (int x = r.a.x; x < r.b.x; ++x)
             {
                 VTermScreenCell cell;
@@ -476,50 +560,67 @@ int TVTermAdapter::damage(VTermRect rect)
                     cells[x] = {};
                 }
             }
-            TPoint p = view.origin + TPoint {r.a.x, y};
-            view.owner->writeLine(p.x, p.y, r.b.x - r.a.x, 1, cells.data() + r.a.x);
+            auto &damage = surface.rowDamage[y];
+            damage.begin = min(r.a.x, damage.begin);
+            damage.end = max(r.b.x, damage.end);
         }
-        return true;
-    }
-    else
-    {
-        dout << pty.getMaster() << ": no draw buffer!" << endl;
-        return false;
-    }
+    return true;
 }
 
 int TVTermAdapter::moverect(VTermRect dest, VTermRect src)
+// Pre: mVT is locked.
 {
     dout << "moverect(" << dest << ", " << src << ")" << endl;
     return false;
 }
 
 int TVTermAdapter::movecursor(VTermPos pos, VTermPos oldpos, int visible)
+// Pre: mVT is locked.
 {
-    updateParentSize();
-    view.setCursor(pos.col, pos.row);
+    mDisplay.lock([&] (auto &dState) {
+        dState.cursorChanged = true;
+        dState.cursorPos = {pos.col, pos.row};
+    });
     return true;
 }
 
 int TVTermAdapter::settermprop(VTermProp prop, VTermValue *val)
+// Pre: mVT is locked.
 {
     dout << "settermprop(" << prop << ", " << val << ")" << endl;
+    auto &strFragBuf = mVT.get().strFragBuf;
+    if (vterm_get_prop_type(prop) == VTERM_VALUETYPE_STRING)
+    {
+        if (val->string.initial)
+            strFragBuf.resize(0);
+        strFragBuf.insert(strFragBuf.end(), val->string.str, val->string.str + val->string.len);
+        if (!val->string.final)
+            return true;
+    }
+
     switch (prop)
     {
         case VTERM_PROP_TITLE:
-            view.window.setTitle(val->string);
+            state |= vtTitleSet;
+            TEventQueue::wakeUp();
             break;
         case VTERM_PROP_CURSORVISIBLE:
-            val->boolean ? view.showCursor() : view.hideCursor();
+            mDisplay.lock([&] (auto &dState) {
+                dState.cursorChanged = true;
+                dState.cursorVisible = val->boolean;
+            });
             break;
         case VTERM_PROP_CURSORBLINK:
-            view.setState(sfCursorIns, val->boolean);
+            mDisplay.lock([&] (auto &dState) {
+                dState.cursorChanged = true;
+                dState.cursorBlink = val->boolean;
+            });
             break;
         case VTERM_PROP_MOUSE:
-            mouseEnabled = val->boolean;
+            mVT.get().mouseEnabled = val->boolean;
             break;
         case VTERM_PROP_ALTSCREEN:
-            altScreenEnabled = val->boolean;
+            mVT.get().altScreenEnabled = val->boolean;
             break;
         default:
             return false;
@@ -528,25 +629,29 @@ int TVTermAdapter::settermprop(VTermProp prop, VTermValue *val)
 }
 
 int TVTermAdapter::bell()
+// Pre: mVT is locked.
 {
     dout << "bell()" << endl;
     return false;
 }
 
 int TVTermAdapter::resize(int rows, int cols)
+// Pre: mVT is locked.
 {
     return false;
 }
 
 int TVTermAdapter::sb_pushline(int cols, const VTermScreenCell *cells)
+// Pre: mVT is locked.
 {
-    linestack.push(std::max(cols, 0), cells);
+    mVT.get().linestack.push(std::max(cols, 0), cells);
     return true;
 }
 
 int TVTermAdapter::sb_popline(int cols, VTermScreenCell *cells)
+// Pre: mVT is locked.
 {
-    return linestack.pop(*this, std::max(cols, 0), cells);
+    return mVT.get().linestack.pop(*this, std::max(cols, 0), cells);
 }
 
 void TVTermAdapter::LineStack::push(size_t cols, const VTermScreenCell *src)
@@ -561,6 +666,7 @@ void TVTermAdapter::LineStack::push(size_t cols, const VTermScreenCell *src)
 
 bool TVTermAdapter::LineStack::pop( const TVTermAdapter &vterm,
                                     size_t cols, VTermScreenCell *dst )
+// Pre: mVT is locked.
 {
     if (!stack.empty())
     {

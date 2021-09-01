@@ -1,6 +1,7 @@
 #ifndef TVTERM_VTERMADAPT_H
 #define TVTERM_VTERMADAPT_H
 
+#define Uses_TDrawSurface
 #include <tvision/tv.h>
 
 #include <tvterm/ptylisten.h>
@@ -11,9 +12,55 @@
 #include <utility>
 #include <vector>
 #include <memory>
+#include <chrono>
+
+#include <tvision/internal/mutex.h>
 
 struct TEvent;
 struct TVTermView;
+
+struct TVTermSurface : protected TDrawSurface
+{
+    struct Range
+    {
+        int begin, end;
+    };
+
+    std::vector<Range> rowDamage;
+
+    TVTermSurface() = default;
+    void resize(TPoint aSize);
+    void clearDamage();
+    void damageAll();
+    using TDrawSurface::at;
+    using TDrawSurface::size;
+
+};
+
+inline void TVTermSurface::resize(TPoint aSize)
+{
+    TDrawSurface::resize(aSize);
+    clearDamage();
+}
+
+inline void TVTermSurface::clearDamage()
+{
+    rowDamage.resize(0);
+    rowDamage.resize(max(0, size.y), {INT_MAX, INT_MIN});
+}
+
+inline void TVTermSurface::damageAll()
+{
+    rowDamage.resize(0);
+    rowDamage.resize(max(0, size.y), {INT_MIN, INT_MAX});
+}
+
+enum : ushort
+{
+    vtClosed        = 0x0001,
+    vtUpdated       = 0x0002,
+    vtTitleSet      = 0x0004,
+};
 
 struct TVTermAdapter
 {
@@ -28,16 +75,34 @@ struct TVTermAdapter
         TSpan<const VTermScreenCell> top() const;
     };
 
+    struct VTState
+    {
+        struct VTerm *vt;
+        struct VTermState *state;
+        struct VTermScreen *vts;
+        std::vector<char> writeBuf;
+        std::vector<char> strFragBuf;
+        LineStack linestack;
+        bool mouseEnabled {false};
+        bool altScreenEnabled {false};
+    };
+
+    struct DisplayState
+    {
+        TVTermSurface surface;
+        bool cursorChanged {false};
+        TPoint cursorPos {0, 0};
+        bool cursorVisible {false};
+        bool cursorBlink {false};
+    };
+
     TVTermView &view;
-    struct VTerm *vt;
-    struct VTermState *state;
-    struct VTermScreen *vts;
     PTY pty;
     PTYListener listener;
-    bool mouseEnabled;
-    bool altScreenEnabled;
-    std::vector<char> outbuf;
-    LineStack linestack;
+    asio::io_context::strand strand;
+    TMutex<VTState> mVT;
+    TMutex<DisplayState> mDisplay;
+    ushort state;
 
     static const VTermScreenCallbacks callbacks;
 
@@ -46,8 +111,13 @@ struct TVTermAdapter
     TVTermAdapter(TVTermView &, asio::io_context &);
     ~TVTermAdapter();
 
-    void read();
+    template <class Func>
+    void sendVT(Func &&);
+
+    void readInput(TSpan<const char> buf);
+    void flushDamage();
     void handleEvent(TEvent &ev);
+    void idle();
     void flushOutput();
 
     void updateChildSize();
@@ -73,10 +143,11 @@ struct TVTermAdapter
 };
 
 inline VTermScreenCell TVTermAdapter::getDefaultCell() const
+// Pre: mVT is locked.
 {
     VTermScreenCell cell {};
     cell.width = 1;
-    vterm_state_get_default_colors(state, &cell.fg, &cell.bg);
+    vterm_state_get_default_colors(mVT.get().state, &cell.fg, &cell.bg);
     return cell;
 }
 

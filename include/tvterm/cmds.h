@@ -10,9 +10,8 @@ enum : ushort {
     cmTileRows,
     // Commands that cannot be deactivated.
     cmNewTerm           = 1000,
-    cmVTermReadable,
+    cmIdle,
     cmIsTerm,
-    cmCheckPTYClosed,
 };
 
 enum : ushort {

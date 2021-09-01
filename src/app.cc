@@ -9,7 +9,6 @@
 #define Uses_TChDirDialog
 #define Uses_TDeskTop
 #define Uses_MsgBox
-#define Uses_TTimer
 #include <tvision/tv.h>
 
 #include <tvterm/app.h>
@@ -103,15 +102,6 @@ TDeskTop *TVTermApp::initDeskTop( TRect r )
 
 void TVTermApp::handleEvent(TEvent &event)
 {
-    if (checkTerms)
-    {
-        checkTerms = false;
-        // We do this here because it ensures no nested event loops are ongoing
-        // (e.g. TView::keyEvent(), TView::mouseEvent()). For example, when
-        // a terminal connection closes while resizing its window.
-        message(this, evBroadcast, cmCheckPTYClosed, nullptr);
-    }
-
     TApplication::handleEvent(event);
     bool handled = true;
     switch (event.what)
@@ -156,7 +146,6 @@ Boolean TVTermApp::valid(ushort command)
 void TVTermApp::idle()
 {
     TApplication::idle();
-    checkTerms = true;
     {
         // Enable or disable the cmTile and cmCascade commands.
         auto isTileable =
@@ -166,6 +155,7 @@ void TVTermApp::idle()
         else
             disableCommands(tileCmds);
     }
+    message(this, evBroadcast, cmIdle, nullptr);
 }
 
 // Command handlers

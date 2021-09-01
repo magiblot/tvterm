@@ -18,18 +18,10 @@ struct TVTermView : public TView
 
     TVTermView(const TRect &bounds, TVTermWindow &window, asio::io_context &io);
 
-    TScreenCell& at(int y, int x);
     void changeBounds(const TRect& bounds) override;
     void handleEvent(TEvent &ev) override;
     void draw() override;
 
 };
-
-inline TScreenCell& TVTermView::at(int y, int x)
-{
-    // Temporary solution: draw directly on the owner's buffer.
-    TRect r = getBounds();
-    return owner->buffer[owner->size.x * (r.a.y + y) + (r.a.x + x)];
-}
 
 #endif // TVTERM_VTERMVIEW_H
