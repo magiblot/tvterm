@@ -87,9 +87,7 @@ inline void PTYListener::readInputUntil(time_point timeout, Func &&func)
             {
                 done = true;
                 if (*alive)
-                {
                     func(TSpan<const char>(nullptr, 0));
-                }
             }
             else
                 delete &done;
@@ -139,15 +137,17 @@ void PTYListener::doReadCycle(TSpan<const char> buf, time_point limit)
         terminal.flushDamage();
         updated = true;
         TEventQueue::wakeUp();
+        writeOutput(terminal.takeWriteBuffer());
         waitInput();
     }
 };
 
 void PTYListener::writeOutput(std::vector<char> &&buf)
 {
-    asio::async_write(
-        descriptor,
-        asio::buffer(buf.data(), buf.size()),
-        asio::bind_executor(strand, [buf = std::move(buf)] (...) {})
-    );
+    if (buf.size())
+        asio::async_write(
+            descriptor,
+            asio::buffer(buf.data(), buf.size()),
+            asio::bind_executor(strand, [buf = std::move(buf)] (...) {})
+        );
 }
