@@ -1,48 +1,81 @@
 #ifndef TVTERM_PTYLISTEN_H
 #define TVTERM_PTYLISTEN_H
 
-#define Uses_TArc
 #include <tvision/tv.h>
-#include <tvision/internal/mutex.h>
 
+#include <tvterm/refcnt.h>
 #include <tvterm/io.h>
 #include <chrono>
+#include <atomic>
+#include <memory>
 
-struct TVTermAdapter;
+class TerminalAdapter;
 
-struct PTYListener
+class PTYListener
 {
-
+    friend std::default_delete<PTYListener>;
     using clock = std::chrono::steady_clock;
     using time_point = clock::time_point;
 
     enum { bufSize = 4096 };
-    enum { maxEmpty = 5 };
+    enum { maxConsecutiveEOF = 5 };
     static constexpr auto maxReadTime = std::chrono::milliseconds(20);
-    static constexpr auto waitForFurtherDataDelay = std::chrono::milliseconds(5);
+    static constexpr auto readWaitStep = std::chrono::milliseconds(5);
 
-    TVTermAdapter &vterm;
+    asio::io_context::strand strand;
     asio::posix::stream_descriptor descriptor;
     asio::basic_waitable_timer<clock> timer;
-    TArc<TMutex<bool>> mAlive;
-    int emptyCount;
+    int consecutiveEOF {0};
+    bool reachedEOF {false};
+    TRc<bool> alive {TRc<bool>::make(true)};
+    std::atomic<bool> updated {false};
 
-    static thread_local char localBuf alignas(4096) [bufSize];
+    static thread_local char staticBuf alignas(4096) [bufSize];
 
-    PTYListener(TVTermAdapter &vterm, asio::io_context &io, int fd);
+    PTYListener(TerminalAdapter &aTerminal, asio::io_context &io, int fd) noexcept;
+    ~PTYListener();
 
-    void start();
-    void stop();
+public:
+
+    TerminalAdapter &terminal;
+
+    static PTYListener &create(TerminalAdapter &aTerminal, asio::io_context &io, int fd) noexcept;
+
+    void destroy();
+
+    bool checkChanges();
+    bool isClosed() const;
+
+    template <class Func>
+    void run(Func &&func);
+
+    void writeOutput(std::vector<char> &&buf);
 
 private:
 
     bool streamNotEmpty();
-    void asyncWait();
+    void waitInput();
+    void handleReadableInput(const asio::error_code &error);
+    void doReadCycle(TSpan<const char> buf, time_point limit);
     template <class Func>
-    void asyncReadUntil(time_point timeout, Func &&);
-    void waitHandler(const asio::error_code &error);
-    void readInput(TSpan<const char> buf, time_point limit);
+    void readInputUntil(time_point timeout, Func &&);
 
 };
+
+template <class Func>
+inline void PTYListener::run(Func &&func)
+{
+    asio::dispatch(strand, std::move(func));
+}
+
+inline bool PTYListener::checkChanges()
+{
+    return updated.exchange(false) == true;
+}
+
+inline bool PTYListener::isClosed() const
+{
+    return reachedEOF;
+}
 
 #endif // TVTERM_PTYLISTEN_H

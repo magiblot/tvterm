@@ -1,103 +1,53 @@
 #ifndef TVTERM_PTY_H
 #define TVTERM_PTY_H
 
-#define Uses_TPoint
-#include <tvision/tv.h>
-#include <tvision/compat/iostream.h>
-
-#include <tvterm/debug.h>
-#include <tvterm/util.h>
 #include <sys/types.h>
-#include <unistd.h>
-#include <signal.h>
-#include <sstream>
-#include <cstdlib>
 
-#if defined(__FreeBSD__)
-#include <sys/ioctl.h>
-#include <libutil.h>
-#include <termios.h>
-#elif defined(__OpenBSD__) || defined(__NetBSD__) || defined(__APPLE__)
-#include <sys/ioctl.h>
-#include <termios.h>
-#include <util.h>
-#else
-#include <pty.h>
-#endif
+template <class T>
+class TSpan;
+class TPoint;
 
-class PTY
+struct PtyDescriptor
 {
+    int master_fd;
+    pid_t child_pid;
 
-    static void initTermios(struct termios *);
-    static void initWinsize(struct winsize *, TPoint);
+    bool valid() const
+    {
+        return master_fd != -1;
+    }
+};
 
+PtyDescriptor createPty( TPoint size, void (&doAsChild)(),
+                         void (&onError)(const char *reason) ) noexcept;
+
+class PtyProcess
+{
     int master_fd;
     pid_t child_pid;
 
 public:
 
-    template <class Func>
-    PTY(TPoint, Func &&);
-    ~PTY();
+    PtyProcess(PtyDescriptor ptyDescriptor) noexcept;
+    ~PtyProcess();
 
-    int getMaster() const;
-    bool getSize(TPoint &) const;
-    bool setSize(TPoint) const;
-    bool setBlocking(bool) const;
-    ssize_t read(TSpan<char>) const;
-    ssize_t write(TSpan<const char>) const;
-    void close();
-    bool closed() const;
+    int getMaster() const noexcept;
+    TPoint getSize() const noexcept;
+    void setSize(TPoint) const noexcept;
+    ssize_t read(TSpan<char>) const noexcept;
+    ssize_t write(TSpan<const char>) const noexcept;
 
 };
 
-template <class Func>
-inline PTY::PTY(TPoint size, Func &&func)
+inline PtyProcess::PtyProcess(PtyDescriptor ptyDescriptor) noexcept :
+    master_fd(ptyDescriptor.master_fd),
+    child_pid(ptyDescriptor.child_pid)
 {
-    struct termios termios; initTermios(&termios);
-    struct winsize winsize; initWinsize(&winsize, size);
-
-    child_pid = forkpty(&master_fd, nullptr, &termios, &winsize);
-    if (child_pid == 0)
-    {
-        // Restore the ISIG signals back to defaults
-        signal(SIGINT,  SIG_DFL);
-        signal(SIGQUIT, SIG_DFL);
-        signal(SIGSTOP, SIG_DFL);
-        signal(SIGCONT, SIG_DFL);
-
-        func();
-
-        char *shell = getenv("SHELL");
-        char *args[] = {shell, nullptr};
-        execvp(shell, args);
-        dout << "Child: cannot exec " << shell << ": " << strerror(errno)
-             << endl << flush;
-        // Don't clean up resources, because we didn't initiate them
-        // (e.g. terminal state).
-        _exit(1);
-    }
-    else if (child_pid == -1)
-    {
-        std::stringstream ss;
-        ss << "Unable to create pseudoterminal: 'forkpty' error: " << strerror(errno) << ".";
-        throw ss.str();
-    }
 }
 
-inline PTY::~PTY()
-{
-    close();
-}
-
-inline int PTY::getMaster() const
+inline int PtyProcess::getMaster() const noexcept
 {
     return master_fd;
-}
-
-inline bool PTY::closed() const
-{
-    return master_fd == -1;
 }
 
 #endif // TVTERM_PTY_H

@@ -1,66 +1,106 @@
+#include <tvterm/debug.h>
 #include <tvterm/pty.h>
-#include <fcntl.h>
 
-void PTY::close()
+#define Uses_TPoint
+#include <tvision/tv.h>
+
+#include <stdio.h>
+#include <unistd.h>
+#include <signal.h>
+#include <fcntl.h>
+#include <sys/ioctl.h>
+#include <termios.h>
+
+#if __has_include(<pty.h>)
+#   include <pty.h>
+#elif __has_include(<libutil.h>)
+#   include <libutil.h>
+#elif __has_include(<util.h>)
+#   include <util.h>
+#endif
+
+static struct termios createTermios() noexcept;
+static struct winsize createWinsize(TPoint size) noexcept;
+
+PtyDescriptor createPty( TPoint size, void (&doAsChild)(),
+                         void (&onError)(const char *) ) noexcept
 {
-    if (master_fd != -1)
+    auto termios = createTermios();
+    auto winsize = createWinsize(size);
+    int master_fd;
+    pid_t child_pid = forkpty(&master_fd, nullptr, &termios, &winsize);
+    if (child_pid == 0)
     {
-        ::close(master_fd);
-        ::kill(child_pid, SIGINT);
-        ::kill(child_pid, SIGTERM);
-        master_fd = -1;
+        // Use the default ISIG signal handlers.
+        signal(SIGINT,  SIG_DFL);
+        signal(SIGQUIT, SIG_DFL);
+        signal(SIGSTOP, SIG_DFL);
+        signal(SIGCONT, SIG_DFL);
+
+        doAsChild();
+
+        char *shell = getenv("SHELL");
+        char *args[] = {shell, nullptr};
+        execvp(shell, args);
+        dout << "Child: cannot exec " << (shell ? shell : "(nil)") << ": " << strerror(errno)
+             << std::endl << std::flush;
+        // Don't clean up resources, because we didn't initiate them
+        // (e.g. terminal state).
+        _exit(1);
     }
+    else if (child_pid == -1)
+    {
+        char str[256];
+        snprintf(str, sizeof(str), "forkpty failed: %s", strerror(errno));
+        onError(str);
+        return {-1, -1};
+    }
+    return {master_fd, child_pid};
 }
 
-bool PTY::getSize(TPoint &size) const
+PtyProcess::~PtyProcess()
+{
+    close(master_fd);
+    kill(child_pid, SIGINT);
+    kill(child_pid, SIGTERM);
+}
+
+TPoint PtyProcess::getSize() const noexcept
 {
     struct winsize w;
     if (ioctl(master_fd, TIOCGWINSZ, &w) != -1)
-    {
-        size = {w.ws_col, w.ws_row};
-        return true;
-    }
-    size = {};
-    return false;
+        return {w.ws_col, w.ws_row};
+    return {};
 }
 
-bool PTY::setSize(TPoint size) const
+void PtyProcess::setSize(TPoint size) const noexcept
 {
     struct winsize w = {};
     w.ws_row = size.y;
     w.ws_col = size.x;
-    return ioctl(master_fd, TIOCSWINSZ, &w) != -1;
+    int rr = ioctl(master_fd, TIOCSWINSZ, &w);
+    (void) rr;
 }
 
-bool PTY::setBlocking(bool enable) const
-{
-    if (enable)
-        return fd_unset_flags(master_fd, O_NONBLOCK);
-    else
-        return fd_set_flags(master_fd, O_NONBLOCK);
-}
-
-ssize_t PTY::read(TSpan<char> buf) const
+ssize_t PtyProcess::read(TSpan<char> buf) const noexcept
 {
     return ::read(master_fd, buf.data(), buf.size());
 }
 
-ssize_t PTY::write(TSpan<const char> buf) const
+ssize_t PtyProcess::write(TSpan<const char> buf) const noexcept
 {
     return ::write(master_fd, buf.data(), buf.size());
 }
 
-void PTY::initWinsize(struct winsize *winsize, TPoint size)
+struct winsize createWinsize(TPoint size) noexcept
 {
     struct winsize w = {};
-
     w.ws_row = size.y;
     w.ws_col = size.x;
-
-    *winsize = w;
+    return w;
 }
 
-void PTY::initTermios(struct termios *termios)
+struct termios createTermios() noexcept
 {
     // Initialization like in pangoterm.
     struct termios t = {};
@@ -99,9 +139,6 @@ void PTY::initTermios(struct termios *termios)
     t.c_lflag |= ECHOKE;
 #endif
 
-    cfsetispeed(&t, B38400);
-    cfsetospeed(&t, B38400);
-
     t.c_cc[VINTR]    = 0x1f & 'C';
     t.c_cc[VQUIT]    = 0x1f & '\\';
     t.c_cc[VERASE]   = 0x7f;
@@ -118,5 +155,8 @@ void PTY::initTermios(struct termios *termios)
     t.c_cc[VMIN]     = 1;
     t.c_cc[VTIME]    = 0;
 
-    *termios = t;
+    cfsetispeed(&t, B38400);
+    cfsetospeed(&t, B38400);
+
+    return t;
 }

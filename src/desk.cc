@@ -1,8 +1,8 @@
 #include <tvterm/desk.h>
 
 TVTermDesk::TVTermDesk(const TRect &bounds) :
-    TDeskTop(bounds),
-    TDeskInit(&TDeskTop::initBackground)
+    TDeskInit(&TDeskTop::initBackground),
+    TDeskTop(bounds)
 {
 }
 

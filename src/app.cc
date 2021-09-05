@@ -15,8 +15,9 @@
 #include <tvterm/cmds.h>
 #include <tvterm/desk.h>
 #include <tvterm/util.h>
-#include <tvterm/vtermwnd.h>
-#include <tvterm/vtermview.h>
+#include <tvterm/termwnd.h>
+#include <tvterm/termactiv.h>
+#include <tvterm/vtermadapt.h>
 
 #include <stdlib.h>
 #include <signal.h>
@@ -49,7 +50,7 @@ TVTermApp::TVTermApp() :
     checkTerms(false)
 {
     disableCommands(tileCmds);
-    disableCommands(TVTermWindow::focusedCmds);
+    disableCommands(TerminalWindow::focusedCmds);
     newTerm();
 }
 
@@ -158,15 +159,19 @@ void TVTermApp::idle()
     message(this, evBroadcast, cmIdle, nullptr);
 }
 
-// Command handlers
+static void onTermError(const char *reason)
+{
+    messageBox(mfError | mfOKButton, "Cannot create terminal: %s.", reason);
+};
 
 void TVTermApp::newTerm()
 {
     TRect r = deskTop->getExtent();
-    TVTermWindow *vt = new TVTermWindow(r, io);
-    vt = (TVTermWindow *) validView(vt);
-    if (vt)
-        deskTop->insert(vt);
+    TPoint size = TerminalWindow::viewSize(r);
+    auto &terminal = *new VTermAdapter(size);
+    auto *term = TerminalActivity::create(size, terminal, io, onTermError);
+    if (term)
+        insertWindow(new TerminalWindow(r, *term));
 }
 
 void TVTermApp::changeDir()

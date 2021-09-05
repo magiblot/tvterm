@@ -1,32 +1,28 @@
 #define Uses_TText
 #define Uses_TKeys
-#define Uses_TProgram
 #include <tvision/tv.h>
 
 #include <tvterm/vtermadapt.h>
-#include <tvterm/vtermview.h>
-#include <tvterm/vtermwnd.h>
-#include <tvterm/ptylisten.h>
 #include <tvterm/debug.h>
-#include <tvterm/cmds.h>
-#include <tvterm/pty.h>
+#include <tvterm/util.h>
 #include <unordered_map>
-#include <algorithm>
 
-const VTermScreenCallbacks TVTermAdapter::callbacks =
+const VTermScreenCallbacks VTermAdapter::callbacks =
 {
-    static_wrap<&TVTermAdapter::damage>,
-    static_wrap<&TVTermAdapter::moverect>,
-    static_wrap<&TVTermAdapter::movecursor>,
-    static_wrap<&TVTermAdapter::settermprop>,
-    static_wrap<&TVTermAdapter::bell>,
-    static_wrap<&TVTermAdapter::resize>,
-    static_wrap<&TVTermAdapter::sb_pushline>,
-    static_wrap<&TVTermAdapter::sb_popline>,
+    _static_wrap(&VTermAdapter::damage),
+    _static_wrap(&VTermAdapter::moverect),
+    _static_wrap(&VTermAdapter::movecursor),
+    _static_wrap(&VTermAdapter::settermprop),
+    _static_wrap(&VTermAdapter::bell),
+    _static_wrap(&VTermAdapter::resize),
+    _static_wrap(&VTermAdapter::sb_pushline),
+    _static_wrap(&VTermAdapter::sb_popline),
 };
 
-namespace vterminput
+namespace vtermadapt
 {
+
+    // Input conversion.
 
     static const std::unordered_map<ushort, ushort> keys =
     {
@@ -106,9 +102,21 @@ namespace vterminput
         { kbCtrlF10,        VTERM_KEY_FUNCTION(10)      },
         { kbCtrlF11,        VTERM_KEY_FUNCTION(11)      },
         { kbCtrlF12,        VTERM_KEY_FUNCTION(12)      },
+        { kbAltF1,          VTERM_KEY_FUNCTION(1)       },
+        { kbAltF2,          VTERM_KEY_FUNCTION(2)       },
+        { kbAltF3,          VTERM_KEY_FUNCTION(3)       },
+        { kbAltF4,          VTERM_KEY_FUNCTION(4)       },
+        { kbAltF5,          VTERM_KEY_FUNCTION(5)       },
+        { kbAltF6,          VTERM_KEY_FUNCTION(6)       },
+        { kbAltF7,          VTERM_KEY_FUNCTION(7)       },
+        { kbAltF8,          VTERM_KEY_FUNCTION(8)       },
+        { kbAltF9,          VTERM_KEY_FUNCTION(9)       },
+        { kbAltF10,         VTERM_KEY_FUNCTION(10)      },
+        { kbAltF11,         VTERM_KEY_FUNCTION(11)      },
+        { kbAltF12,         VTERM_KEY_FUNCTION(12)      },
     };
 
-    static constexpr struct { ushort tvmod; VTermModifier vtmod; } modifiers[] =
+    static constexpr struct { ushort tv; VTermModifier vt; } modifiers[] =
     {
         { kbShift,      VTERM_MOD_SHIFT },
         { kbAltShift,   VTERM_MOD_ALT   },
@@ -126,105 +134,59 @@ namespace vterminput
     static VTermModifier convMod(ulong controlKeyState)
     {
         VTermModifier mod = VTERM_MOD_NONE;
-        for (const auto [tvmod, vtmod] : modifiers)
-            if (controlKeyState & tvmod)
-                mod = VTermModifier(mod | vtmod);
+        for (const auto &m : modifiers)
+            if (controlKeyState & m.tv)
+                mod = VTermModifier(mod | m.vt);
         return mod;
     }
 
-    static void convMouse( TEvent &ev, TView &view,
-                           TPoint &where, VTermModifier &mod, int &button )
+    static void convMouse( const MouseEventType &mouse,
+                           VTermModifier &mod, int &button )
     {
-        {
-            TPoint p = view.makeLocal(ev.mouse.where);
-            where = {
-                std::clamp(p.x, 0, view.size.x),
-                std::clamp(p.y, 0, view.size.y),
-            };
-        }
-        mod = convMod(ev.mouse.controlKeyState);
-        button =    (ev.mouse.buttons & mbLeftButton)   ? 1 :
-                    (ev.mouse.buttons & mbMiddleButton) ? 2 :
-                    (ev.mouse.buttons & mbRightButton)  ? 3 :
-                    (ev.mouse.wheel & mwUp)             ? 4 :
-                    (ev.mouse.wheel & mwDown)           ? 5 :
-                                                          0 ;
+        mod = convMod(mouse.controlKeyState);
+        button =    (mouse.buttons & mbLeftButton)   ? 1 :
+                    (mouse.buttons & mbMiddleButton) ? 2 :
+                    (mouse.buttons & mbRightButton)  ? 3 :
+                    (mouse.wheel & mwUp)             ? 4 :
+                    (mouse.wheel & mwDown)           ? 5 :
+                                                       0 ;
     }
 
-    static void processKey(TEvent &ev, VTerm *vt)
+    static void processKey(VTerm *vt, KeyDownEvent keyDown)
     {
-        VTermModifier mod = convMod(ev.keyDown.controlKeyState);
-        if (kbCtrlA <= ev.keyDown.keyCode && ev.keyDown.keyCode <= kbCtrlZ)
+        VTermModifier mod = convMod(keyDown.controlKeyState);
+        if (kbCtrlA <= keyDown.keyCode && keyDown.keyCode <= kbCtrlZ)
         {
-            ev.keyDown.text[0] = ev.keyDown.keyCode;
-            ev.keyDown.textLength = 1;
+            keyDown.text[0] = keyDown.keyCode;
+            keyDown.textLength = 1;
             mod = VTermModifier(mod & ~VTERM_MOD_CTRL);
         }
-        else if (char c = getAltChar(ev.keyDown.keyCode))
+        else if (char c = getAltChar(keyDown.keyCode))
         {
             if (c == '\xF0') c = ' '; // Alt+Space.
-            ev.keyDown.text[0] = c;
-            ev.keyDown.textLength = 1;
+            keyDown.text[0] = c;
+            keyDown.textLength = 1;
         }
-        if (ev.keyDown.textLength)
-        {
-            uint32_t c = utf8To32(ev.keyDown.getText());
-            vterm_keyboard_unichar(vt, c, mod);
-        }
-        else
-        {
-            VTermKey key = convKey(ev.keyDown.keyCode);
-            if (key)
-                vterm_keyboard_key(vt, key, mod);
-        }
+
+        if (keyDown.textLength)
+            vterm_keyboard_unichar(vt, utf8To32(keyDown.getText()), mod);
+        else if (VTermKey key = convKey(keyDown.keyCode))
+            vterm_keyboard_key(vt, key, mod);
     }
 
-    template <class OutputState, class Flush>
-    static void processMouseDown(TEvent &ev, OutputState &mVT, TView &view, Flush &&flush)
+    static void processMouse(VTerm *vt, ushort what, const MouseEventType &mouse)
     {
-        bool mouseEnabled = false;
-        do {
-            TPoint where; VTermModifier mod; int button;
-            convMouse(ev, view, where, mod, button);
-            if (mVT.get().mouseEnabled)
-                mVT.lock([&] (auto &vtState) {
-                    if ((mouseEnabled = vtState.mouseEnabled))
-                    {
-                        vterm_mouse_move(vtState.vt, where.y, where.x, mod);
-                        if (ev.what & (evMouseDown | evMouseUp | evMouseWheel))
-                            vterm_mouse_button(vtState.vt, button, ev.what != evMouseUp, mod);
-                        flush();
-                    }
-                });
-        } while (mouseEnabled && view.mouseEvent(ev, evMouse));
-        if (ev.what == evMouseUp)
-        {
-            TPoint where; VTermModifier mod; int button;
-            convMouse(ev, view, where, mod, button);
-            if (mVT.get().mouseEnabled)
-                mVT.lock([&] (auto &vtState) {
-                    if (vtState.mouseEnabled)
-                    {
-                        vterm_mouse_move(vtState.vt, where.y, where.x, mod);
-                        vterm_mouse_button(vtState.vt, button, false, mod);
-                    }
-                });
-        }
+        VTermModifier mod; int button;
+        convMouse(mouse, mod, button);
+        vterm_mouse_move(vt, mouse.where.y, mouse.where.x, mod);
+        if (what & (evMouseDown | evMouseUp | evMouseWheel))
+            vterm_mouse_button(vt, button, what != evMouseUp, mod);
     }
 
-    static void processMouseOther(TEvent &ev, VTerm *vt, TView &view)
-    {
-        TPoint where; VTermModifier mod; int button;
-        convMouse(ev, view, where, mod, button);
-        vterm_mouse_move(vt, where.y, where.x, mod);
-        if (ev.what & (evMouseUp | evMouseWheel))
-            vterm_mouse_button(vt, button, ev.what != evMouseUp, mod);
-    }
-
-    static void wheelToArrow(TEvent &ev, VTerm *vt)
+    static void wheelToArrow(VTerm *vt, uchar wheel)
     {
         VTermKey key = VTERM_KEY_NONE;
-        switch (ev.mouse.wheel)
+        switch (wheel)
         {
             case mwUp: key = VTERM_KEY_UP; break;
             case mwDown: key = VTERM_KEY_DOWN; break;
@@ -235,10 +197,7 @@ namespace vterminput
             vterm_keyboard_key(vt, key, VTERM_MOD_NONE);
     }
 
-} // namespace vterminput
-
-namespace vtermoutput
-{
+    // Output conversion.
 
     static TColorRGB VTermRGBtoRGB(VTermColor c)
     {
@@ -312,283 +271,133 @@ namespace vtermoutput
 
     }
 
-} // namespace vtermoutput
+} // namespace vtermadapt
 
-void TVTermAdapter::childActions()
+VTermAdapter::VTermAdapter(TPoint size) noexcept :
+    TerminalAdapter(size)
 {
-    setenv("TERM", "xterm-256color", 1);
-    setenv("COLORTERM", "truecolor", 1);
-}
-
-TVTermAdapter::TVTermAdapter(TVTermView &view, asio::io_context &io) :
-    view(view),
-    pty(view.size, childActions),
-    listener(*this, io, pty.getMaster()),
-    strand(io)
-{
-    auto *vt = vterm_new(view.size.y, view.size.x);
+    vt = vterm_new(max(size.y, 1), max(size.x, 1));
     vterm_set_utf8(vt, 1);
 
-    auto *state = vterm_obtain_state(vt);
+    state = vterm_obtain_state(vt);
     vterm_state_reset(state, true);
 
-    auto *vts = vterm_obtain_screen(vt);
+    vts = vterm_obtain_screen(vt);
     vterm_screen_enable_altscreen(vts, true);
     vterm_screen_set_callbacks(vts, &callbacks, this);
     vterm_screen_set_damage_merge(vts, VTERM_DAMAGE_SCROLL);
     vterm_screen_reset(vts, true);
 
-    vterm_output_set_callback(vt, static_wrap<&TVTermAdapter::writeOutput>, this);
+    vterm_output_set_callback(vt, _static_wrap(&VTermAdapter::writeOutput), this);
 
-    mVT.get().vt = vt;
-    mVT.get().state = state;
-    mVT.get().vts = vts;
-    mDisplay.get().surface.resize(view.size);
-    listener.start();
+    // VTerm's cursor blinks by default, but it shouldn't.
+    VTermValue val {0};
+    vterm_state_set_termprop(state, VTERM_PROP_CURSORBLINK, &val);
 }
 
-TVTermAdapter::~TVTermAdapter()
+VTermAdapter::~VTermAdapter()
 {
-    listener.stop();
-    vterm_free(mVT.get().vt);
+    vterm_free(vt);
 }
 
-template <class Func>
-void TVTermAdapter::sendVT(Func &&func)
+void VTermAdapter::receive(TSpan<const char> buf) noexcept
 {
-    asio::dispatch(strand, [mAlive=listener.mAlive, func=std::move(func)] () mutable {
-        mAlive->lock([&] (auto &alive) {
-            if (alive)
-                func();
-        });
-    });
+    vterm_input_write(vt, buf.data(), buf.size());
 }
 
-void TVTermAdapter::readInput(TSpan<const char> buf)
+void VTermAdapter::flushDamage() noexcept
 {
-    mVT.lock([&] (auto &vtState) {
-        vterm_input_write(vtState.vt, buf.data(), buf.size());
-    });
+    vterm_screen_flush_damage(vts);
 }
 
-void TVTermAdapter::flushDamage()
+void VTermAdapter::handleKeyDown(const KeyDownEvent &keyDown) noexcept
 {
-    mVT.lock([&] (auto &vtState) {
-        mDisplay.lock([&] (auto &) {
-            vterm_screen_flush_damage(vtState.vts);
-        });
-    });
+    using namespace vtermadapt;
+    processKey(vt, keyDown);
 }
 
-void TVTermAdapter::handleEvent(TEvent &ev)
+void VTermAdapter::handleMouse(ushort what, const MouseEventType &mouse) noexcept
 {
-    using namespace vterminput;
-
-    bool handled = true;
-    switch (ev.what)
-    {
-        case evKeyDown:
-        {
-            sendVT([&, ev] () mutable {
-                mVT.lock([&] (auto &vtState) {
-                    processKey(ev, vtState.vt);
-                });
-            });
-            break;
-        }
-        case evMouseDown:
-            processMouseDown(ev, mVT, view, [this] { flushOutput(); });
-            break;
-        case evMouseWheel:
-        case evMouseMove:
-        case evMouseAuto:
-        case evMouseUp:
-            sendVT([&, ev] () mutable {
-                mVT.lock([&] (auto &vtState) {
-                    if (ev.what == evMouseWheel && !vtState.mouseEnabled && vtState.altScreenEnabled)
-                        wheelToArrow(ev, vtState.vt);
-                    else if (vtState.mouseEnabled)
-                        processMouseOther(ev, vtState.vt, view);
-                });
-            });
-            break;
-        case evBroadcast:
-            if (ev.message.command == cmIdle)
-                idle();
-            break;
-        default:
-            handled = false;
-            break;
-    }
-
-    if (handled)
-    {
-        sendVT([&] {
-            mVT.lock([&] (auto &) {
-                flushOutput();
-            });
-        });
-        if (ev.what != evBroadcast)
-            view.clearEvent(ev);
-    }
+    using namespace vtermadapt;
+    if (mouseEnabled)
+        processMouse(vt, what, mouse);
+    else if (altScreenEnabled && what == evMouseWheel)
+        wheelToArrow(vt, mouse.wheel);
 }
 
-void TVTermAdapter::idle()
+void VTermAdapter::setSize(TPoint size) noexcept
 {
-    if (state & vtClosed)
-    {
-        pty.close();
-        state &= ~vtClosed;
-    }
-    if (state & vtUpdated)
-    {
-        view.drawView();
-        state &= ~vtUpdated;
-    }
-    if (state & vtTitleSet)
-    {
-        mVT.lock([&] (auto &vtState) {
-            auto &title = vtState.strFragBuf;
-            view.window.setTitle({title.data(), title.size()});
-        });
-        state &= ~vtTitleSet;
-    }
+    vterm_set_size(vt, max(size.y, 1), max(size.x, 1));
 }
 
-void TVTermAdapter::flushOutput()
-// Pre: mVT is locked.
-{
-    // Writing to pty could also be done asynchronously via asio, but we don't
-    // need that yet.
-    auto &writeBuf = mVT.get().writeBuf;
-    pty.setBlocking(true);
-    pty.write({writeBuf.data(), writeBuf.size()});
-    pty.setBlocking(false);
-    writeBuf.resize(0);
-}
-
-void TVTermAdapter::updateChildSize()
-{
-    TPoint s = view.size;
-    // Signal the child.
-    setChildSize(s);
-    sendVT([&, s] {
-        mVT.lock([&] (auto &vtState) {
-            mDisplay.lock([&] (auto &dState) {
-                // We ensure that TVTermView never sees a blank surface
-                // by re-painting before changing vterm's internal state.
-                dState.surface.resize(s);
-                damageAll();
-            });
-            vterm_set_size_safe(vtState.vt, s.y, s.x);
-        });
-    });
-}
-
-void TVTermAdapter::updateParentSize()
-{
-    setParentSize(getChildSize());
-}
-
-TPoint TVTermAdapter::getChildSize() const
-{
-    TPoint s;
-    pty.getSize(s);
-    return s;
-}
-
-void TVTermAdapter::setChildSize(TPoint s) const
-{
-    if (s != getChildSize())
-        pty.setSize(s);
-}
-
-void TVTermAdapter::setParentSize(TPoint s)
-{
-    // TODO: Redesign this feature.
-//     TPoint d = s - view.size;
-//     if (d.x || d.y)
-//     {
-//         TRect r = view.window.getBounds();
-//         r.b += d;
-//         view.window.locate(r);
-//         vterm_set_size_safe(vt, s.y, s.x);
-//         vterm_screen_flush_damage(vts);
-//     }
-}
-
-void TVTermAdapter::damageAll()
-// Pre: mVT and mDisplay are locked
+void VTermAdapter::damageAll() noexcept
 {
     // Calling 'vterm_screen_flush_damage' instead of 'damage' would clear
     // the window after a resize, causing blinking.
     TPoint s;
-    vterm_get_size(mVT.get().vt, &s.y, &s.x);
+    vterm_get_size(vt, &s.y, &s.x);
     damage({0, s.y, 0, s.x});
 }
 
-void TVTermAdapter::writeOutput(const char *data, size_t size)
-// Pre: mVT is locked.
+void VTermAdapter::writeOutput(const char *data, size_t size)
 {
-    auto &writeBuf = mVT.get().writeBuf;
-    writeBuf.insert(writeBuf.end(), data, data + size);
+    writeBuffer.insert(writeBuffer.end(), data, data + size);
 }
 
-int TVTermAdapter::damage(VTermRect rect)
-// Pre: mVT and mDisplay are locked.
+int VTermAdapter::damage(VTermRect rect)
 {
-    using namespace vtermoutput;
-        auto &vts = mVT.get().vts;
-        auto &surface = mDisplay.get().surface;
+    using namespace vtermadapt;
+    getState([&] (auto &state) {
+        auto &surface = state.surface;
         TRect r(rect.start_col, rect.start_row, rect.end_col, rect.end_row);
-        r.intersect(TRect({0, 0}, surface.size));
-        for (int y = r.a.y; y < r.b.y; ++y)
+        r.intersect({{0, 0}, surface.size});
+        if (0 <= r.a.x && r.a.x < r.b.x && 0 <= r.a.y && r.a.y < r.b.y)
         {
-            TSpan<TScreenCell> cells(&surface.at(y, 0), surface.size.x);
-            for (int x = r.a.x; x < r.b.x; ++x)
+            for (int y = r.a.y; y < r.b.y; ++y)
             {
-                VTermScreenCell cell;
-                if (vterm_screen_get_cell(vts, {y, x}, &cell))
+                TSpan<TScreenCell> cells(&surface.at(y, 0), surface.size.x);
+                for (int x = r.a.x; x < r.b.x; ++x)
                 {
-                    convAttr(cells[x].attr, cell);
-                    convText(cells, x, cell);
+                    VTermScreenCell cell;
+                    if (vterm_screen_get_cell(vts, {y, x}, &cell))
+                    {
+                        convAttr(cells[x].attr, cell);
+                        convText(cells, x, cell);
+                    }
+                    else
+                    {
+                        // The size in 'vt' and 'vts' is sometimes mismatched and
+                        // the cell access fails.
+                        cells[x] = {};
+                    }
                 }
-                else
-                {
-                    // The size in 'vt' and 'vts' is sometimes mismatched and
-                    // the cell access fails.
-                    cells[x] = {};
-                }
+                auto &damage = surface.damageAt(y);
+                damage.begin = min(r.a.x, damage.begin);
+                damage.end = max(r.b.x, damage.end);
             }
-            auto &damage = surface.rowDamage[y];
-            damage.begin = min(r.a.x, damage.begin);
-            damage.end = max(r.b.x, damage.end);
         }
-    return true;
-}
-
-int TVTermAdapter::moverect(VTermRect dest, VTermRect src)
-// Pre: mVT is locked.
-{
-    dout << "moverect(" << dest << ", " << src << ")" << endl;
-    return false;
-}
-
-int TVTermAdapter::movecursor(VTermPos pos, VTermPos oldpos, int visible)
-// Pre: mVT is locked.
-{
-    mDisplay.lock([&] (auto &dState) {
-        dState.cursorChanged = true;
-        dState.cursorPos = {pos.col, pos.row};
     });
     return true;
 }
 
-int TVTermAdapter::settermprop(VTermProp prop, VTermValue *val)
-// Pre: mVT is locked.
+int VTermAdapter::moverect(VTermRect dest, VTermRect src)
 {
-    dout << "settermprop(" << prop << ", " << val << ")" << endl;
-    auto &strFragBuf = mVT.get().strFragBuf;
+    dout << "moverect(" << dest << ", " << src << ")" << std::endl;
+    return false;
+}
+
+int VTermAdapter::movecursor(VTermPos pos, VTermPos oldpos, int visible)
+{
+    getState([&] (auto &state) {
+        state.cursorChanged = true;
+        state.cursorPos = {pos.col, pos.row};
+    });
+    return true;
+}
+
+int VTermAdapter::settermprop(VTermProp prop, VTermValue *val)
+{
+    dout << "settermprop(" << prop << ", " << val << ")" << std::endl;
     if (vterm_get_prop_type(prop) == VTERM_VALUETYPE_STRING)
     {
         if (val->string.initial)
@@ -601,26 +410,28 @@ int TVTermAdapter::settermprop(VTermProp prop, VTermValue *val)
     switch (prop)
     {
         case VTERM_PROP_TITLE:
-            state |= vtTitleSet;
-            TEventQueue::wakeUp();
+            getState([&] (auto &state) {
+                state.titleChanged = true;
+                state.title = std::move(strFragBuf);
+            });
             break;
         case VTERM_PROP_CURSORVISIBLE:
-            mDisplay.lock([&] (auto &dState) {
-                dState.cursorChanged = true;
-                dState.cursorVisible = val->boolean;
+            getState([&] (auto &state) {
+                state.cursorChanged = true;
+                state.cursorVisible = val->boolean;
             });
             break;
         case VTERM_PROP_CURSORBLINK:
-            mDisplay.lock([&] (auto &dState) {
-                dState.cursorChanged = true;
-                dState.cursorBlink = val->boolean;
+            getState([&] (auto &state) {
+                state.cursorChanged = true;
+                state.cursorBlink = val->boolean;
             });
             break;
         case VTERM_PROP_MOUSE:
-            mVT.get().mouseEnabled = val->boolean;
+            mouseEnabled = val->boolean;
             break;
         case VTERM_PROP_ALTSCREEN:
-            mVT.get().altScreenEnabled = val->boolean;
+            altScreenEnabled = val->boolean;
             break;
         default:
             return false;
@@ -628,45 +439,48 @@ int TVTermAdapter::settermprop(VTermProp prop, VTermValue *val)
     return true;
 }
 
-int TVTermAdapter::bell()
-// Pre: mVT is locked.
+int VTermAdapter::bell()
 {
-    dout << "bell()" << endl;
+    dout << "bell()" << std::endl;
     return false;
 }
 
-int TVTermAdapter::resize(int rows, int cols)
-// Pre: mVT is locked.
+int VTermAdapter::resize(int rows, int cols)
 {
     return false;
 }
 
-int TVTermAdapter::sb_pushline(int cols, const VTermScreenCell *cells)
-// Pre: mVT is locked.
+int VTermAdapter::sb_pushline(int cols, const VTermScreenCell *cells)
 {
-    mVT.get().linestack.push(std::max(cols, 0), cells);
+    linestack.push(std::max(cols, 0), cells);
     return true;
 }
 
-int TVTermAdapter::sb_popline(int cols, VTermScreenCell *cells)
-// Pre: mVT is locked.
+int VTermAdapter::sb_popline(int cols, VTermScreenCell *cells)
 {
-    return mVT.get().linestack.pop(*this, std::max(cols, 0), cells);
+    return linestack.pop(*this, std::max(cols, 0), cells);
 }
 
-void TVTermAdapter::LineStack::push(size_t cols, const VTermScreenCell *src)
+inline VTermScreenCell VTermAdapter::getDefaultCell() const
+{
+    VTermScreenCell cell {};
+    cell.width = 1;
+    vterm_state_get_default_colors(state, &cell.fg, &cell.bg);
+    return cell;
+}
+
+void VTermAdapter::LineStack::push(size_t cols, const VTermScreenCell *src)
 {
     if (stack.size() < maxSize)
     {
-        auto line = TSpan(new VTermScreenCell[cols], cols);
-        memcpy(line.data(), src, line.size_bytes());
-        stack.emplace_back(line.data(), cols);
+        auto *line = new VTermScreenCell[cols];
+        memcpy(line, src, sizeof(VTermScreenCell)*cols);
+        stack.emplace_back(line, cols);
     }
 }
 
-bool TVTermAdapter::LineStack::pop( const TVTermAdapter &vterm,
+bool VTermAdapter::LineStack::pop( const VTermAdapter &vterm,
                                     size_t cols, VTermScreenCell *dst )
-// Pre: mVT is locked.
 {
     if (!stack.empty())
     {

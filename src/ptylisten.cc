@@ -1,33 +1,40 @@
-#define Uses_TEvent
-#define Uses_TTimer
+#include <tvterm/ptylisten.h>
+#include <tvterm/termadapt.h>
+
+#define Uses_TEventQueue
 #include <tvision/tv.h>
 
-#include <tvterm/ptylisten.h>
-#include <tvterm/vtermadapt.h>
-#include <tvterm/vtermview.h>
-#include <tvterm/cmds.h>
+thread_local char PTYListener::staticBuf alignas(4096) [bufSize];
 
-thread_local char PTYListener::localBuf alignas(4096) [bufSize];
-
-PTYListener::PTYListener(TVTermAdapter &vterm, asio::io_context &io, int fd) :
-    vterm(vterm),
+inline PTYListener::PTYListener( TerminalAdapter &aTerminal,
+                                 asio::io_context &io, int fd ) noexcept :
+    strand(io),
     descriptor(io, fd),
     timer(io),
-    mAlive(TArc<TMutex<bool>>::make(true)),
-    emptyCount(0)
+    terminal(aTerminal)
 {
 }
 
-void PTYListener::start()
+PTYListener &PTYListener::create( TerminalAdapter &aTerminal,
+                                  asio::io_context &io, int fd ) noexcept
 {
-    asyncWait();
+    auto &self = *new PTYListener(aTerminal, io, fd);
+    self.waitInput();
+    return self;
 }
 
-void PTYListener::stop()
+inline PTYListener::~PTYListener()
 {
-    mAlive->get() = false;
-    descriptor.cancel();
-    mAlive->lock([&] (auto &) {});
+    *alive = false;
+    delete &terminal;
+}
+
+void PTYListener::destroy()
+{
+    asio::dispatch(
+        strand,
+        [s = std::unique_ptr<PTYListener>(this)] {}
+    );
 }
 
 bool PTYListener::streamNotEmpty()
@@ -38,93 +45,109 @@ bool PTYListener::streamNotEmpty()
     return !err && cmd.get() > 0;
 }
 
-void PTYListener::asyncWait()
+void PTYListener::waitInput()
 {
     descriptor.async_wait(
         asio::posix::stream_descriptor::wait_read,
-        [&, mAlive=mAlive] (auto &error) mutable {
-            mAlive->lock([&] (auto &alive) {
-                if (alive)
-                    waitHandler(error);
-            });
-        }
+        asio::bind_executor(strand, [this, alive = alive] (auto &error) {
+            if (*alive)
+                handleReadableInput(error);
+        })
     );
 }
 
 template <class Func>
-void PTYListener::asyncReadUntil(time_point timeout, Func &&func)
+inline void PTYListener::readInputUntil(time_point timeout, Func &&func)
 // 'func' takes a TSpan<char> by parameter.
 {
-    auto &&done = TArc<bool>::make(false);
+    auto &done = *new bool(false);
     descriptor.async_wait(
         asio::posix::stream_descriptor::wait_read,
-        [&, mAlive=mAlive, done, func] (auto &error) mutable {
-            mAlive->lock([&] (auto &alive) {
-                if (alive && !*done)
+        asio::bind_executor(strand, [this, alive = alive, &done, func] (auto &error) {
+            if (!done)
+            {
+                done = true;
+                if (*alive)
                 {
-                    *done = true;
                     asio::error_code ec;
                     size_t bytes = 0;
                     if (!error && streamNotEmpty())
-                        bytes = descriptor.read_some(asio::buffer(localBuf), ec);
-                    func(TSpan<const char>(localBuf, bytes));
+                        bytes = descriptor.read_some(asio::buffer(staticBuf), ec);
+                    func(TSpan<const char>(staticBuf, bytes));
                 }
-            });
-        }
+            }
+            else
+                delete &done;
+        })
     );
     timer.expires_at(timeout);
     timer.async_wait(
-        [&, mAlive=mAlive, done=std::move(done), func=std::move(func)] (auto &error) mutable {
-            mAlive->lock([&] (auto &alive) {
-                if (alive && !*done)
+        asio::bind_executor(strand, [this, alive = alive, &done, func = std::move(func)] (auto &error) {
+            if (!done)
+            {
+                done = true;
+                if (*alive)
                 {
-                    *done = true;
                     func(TSpan<const char>(nullptr, 0));
                 }
-            });
-        }
+            }
+            else
+                delete &done;
+        })
     );
 }
 
-void PTYListener::waitHandler(const asio::error_code &error)
+void PTYListener::handleReadableInput(const asio::error_code &error)
 {
+    TimeLogger::log("PTYListener@%p: handleReadableInput(%d).", this, error.value());
     if (!error && streamNotEmpty())
     {
-        emptyCount = 0;
+        consecutiveEOF = 0;
         asio::error_code ec;
-        size_t bytes = descriptor.read_some(asio::buffer(localBuf), ec);
-        readInput({localBuf, bytes}, clock::now() + maxReadTime);
+        size_t bytes = descriptor.read_some(asio::buffer(staticBuf), ec);
+        doReadCycle({staticBuf, bytes}, clock::now() + maxReadTime);
     }
-    else if (++emptyCount < maxEmpty)
+    else if (++consecutiveEOF < maxConsecutiveEOF)
+    {
         // This happens sometimes, especially when running in Valgrind.
         // Give it a few chances before assuming EOF.
-        asyncWait();
+        waitInput();
+    }
     else
     {
-        vterm.state |= vtClosed;
+        reachedEOF = true;
         TEventQueue::wakeUp();
     }
 }
 
-void PTYListener::readInput(TSpan<const char> buf, time_point limit)
+void PTYListener::doReadCycle(TSpan<const char> buf, time_point limit)
 {
-    vterm.readInput(buf);
+    terminal.receive(buf);
     time_point now;
     if (buf.size() && (now = clock::now()) < limit)
     {
-        auto until = ::min(limit, now + waitForFurtherDataDelay);
-        asyncReadUntil(
+        auto until = ::min(limit, now + readWaitStep);
+        readInputUntil(
             until,
-            [&, limit] (auto buf) {
-                readInput(buf, limit);
+            [this, limit] (auto buf) {
+                doReadCycle(buf, limit);
             }
         );
     }
     else
     {
-        vterm.flushDamage();
-        vterm.state |= vtUpdated;
+        terminal.flushDamage();
+        updated = true;
         TEventQueue::wakeUp();
-        asyncWait();
+        waitInput();
     }
 };
+
+void PTYListener::writeOutput(std::vector<char> &&buf)
+{
+    asio::async_write(
+        descriptor,
+        asio::buffer(buf.data(), buf.size()),
+        asio::bind_executor(strand, [buf = std::move(buf)] (...) {})
+    );
+}
