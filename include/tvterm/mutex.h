@@ -18,7 +18,7 @@ public:
 
     template <class... Args>
     TMutex(Args&&... args) :
-        t(std::forward<Args&&>(args)...)
+        t {std::forward<Args&&>(args)...}
     {
     }
 

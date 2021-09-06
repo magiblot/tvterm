@@ -42,14 +42,7 @@ void TerminalActivity::changeSize(TPoint size) noexcept
 {
     pty.setSize(size);
     listener.run([&listener = listener, size] {
-        auto &terminal = listener.terminal;
-        terminal.getState([&] (auto &state) {
-            // We ensure that TerminalView never sees a blank surface
-            // by redrawing it before changing the TerminalAdapter's internal state.
-            state.surface.resize(size);
-        });
-        terminal.damageAll();
-        terminal.setSize(size);
+        listener.terminal.changeSize(size);
     });
 }
 
