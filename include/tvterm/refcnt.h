@@ -1,6 +1,8 @@
 #ifndef TVTERM_REFCNT_H
 #define TVTERM_REFCNT_H
 
+#include <atomic>
+
 struct AtomicOps
 {
     using counter_type = std::atomic<size_t>;

@@ -75,11 +75,14 @@ TPoint PtyProcess::getSize() const noexcept
 
 void PtyProcess::setSize(TPoint size) const noexcept
 {
-    struct winsize w = {};
-    w.ws_row = size.y;
-    w.ws_col = size.x;
-    int rr = ioctl(master_fd, TIOCSWINSZ, &w);
-    (void) rr;
+    if (size != getSize())
+    {
+        struct winsize w = {};
+        w.ws_row = size.y;
+        w.ws_col = size.x;
+        int rr = ioctl(master_fd, TIOCSWINSZ, &w);
+        (void) rr;
+    }
 }
 
 ssize_t PtyProcess::read(TSpan<char> buf) const noexcept

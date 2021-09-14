@@ -30,8 +30,8 @@ void TerminalView::changeBounds(const TRect& bounds)
         // redrawn, at least copy the whole surface.
         state.surface.damageAll();
     });
-    term.changeSize(size);
     drawView();
+    term.changeSize(size);
 }
 
 void TerminalView::handleEvent(TEvent &ev)
@@ -99,16 +99,10 @@ void TerminalView::updateDisplay(TerminalSurface &surface) noexcept
             auto &damage = surface.damageAt(y);
             int begin = max(r.a.x, damage.begin);
             int end = min(r.b.x, damage.end);
-            if (begin <= damage.begin)
-                damage.begin = max(damage.begin, end);
-            if (damage.end <= end)
-                damage.end = min(damage.end, begin);
             writeLine(begin, y, end - begin, 1, &surface.at(y, begin));
-
         }
+        surface.clearAllDamage();
         // We don't need to draw the area that is not filled by the surface.
         // It will be blank or will still contain the surface's previous contents.
     }
-    else
-        TView::draw();
 }

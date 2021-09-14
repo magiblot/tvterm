@@ -9,11 +9,10 @@ static void childActions() noexcept
     setenv("COLORTERM", "truecolor", 1);
 }
 
-inline TerminalActivity::TerminalActivity( TerminalAdapter &aTerminal,
-                                           asio::io_context &io,
-                                           PtyDescriptor ptyDescriptor ) noexcept :
-    pty(ptyDescriptor),
-    listener(PTYListener::create(aTerminal, io, pty.getMaster()))
+inline TerminalActivity::TerminalActivity( TPoint size, PtyDescriptor ptyDescriptor,
+                                           TerminalAdapter &aTerminal,
+                                           asio::io_context &io ) noexcept :
+    listener(PTYListener::create(size, ptyDescriptor, aTerminal, io))
 {
 }
 
@@ -23,7 +22,7 @@ TerminalActivity *TerminalActivity::create( TPoint size, TerminalAdapter &termin
 {
     auto ptyDescriptor = createPty(size, childActions, onError);
     if (ptyDescriptor.valid())
-        return new TerminalActivity(terminal, io, ptyDescriptor);
+        return new TerminalActivity(size, ptyDescriptor, terminal, io);
     delete &terminal;
     return nullptr;
 }
@@ -35,14 +34,13 @@ TerminalActivity::~TerminalActivity()
 
 TPoint TerminalActivity::getSize() const noexcept
 {
-    return pty.getSize();
+    return listener.getSize();
 }
 
 void TerminalActivity::changeSize(TPoint size) noexcept
 {
-    pty.setSize(size);
     listener.run([&listener = listener, size] {
-        listener.terminal.changeSize(size);
+        listener.changeSize(size);
     });
 }
 

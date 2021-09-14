@@ -14,11 +14,10 @@ struct MouseEventType;
 class TerminalActivity
 {
 
-    PtyProcess pty;
     PTYListener &listener;
 
-    TerminalActivity( TerminalAdapter &aTerminal, asio::io_context &io,
-                      PtyDescriptor ptyDescriptor ) noexcept;
+    TerminalActivity( TPoint size, PtyDescriptor ptyDescriptor,
+                      TerminalAdapter &aTerminal, asio::io_context &io ) noexcept;
 
 public:
 

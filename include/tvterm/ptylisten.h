@@ -1,9 +1,11 @@
 #ifndef TVTERM_PTYLISTEN_H
 #define TVTERM_PTYLISTEN_H
 
+#define Uses_TPoint
 #include <tvision/tv.h>
 
 #include <tvterm/refcnt.h>
+#include <tvterm/pty.h>
 #include <tvterm/io.h>
 #include <chrono>
 #include <atomic>
@@ -20,45 +22,55 @@ class PTYListener
     enum { bufSize = 4096 };
     enum { maxConsecutiveEOF = 5 };
     static constexpr auto maxReadTime = std::chrono::milliseconds(20);
-    static constexpr auto readWaitStep = std::chrono::milliseconds(5);
+    static constexpr auto inputWaitStep = std::chrono::milliseconds(5);
+
+    PtyProcess pty;
 
     asio::io_context::strand strand;
     asio::posix::stream_descriptor descriptor;
-    asio::basic_waitable_timer<clock> timer;
+    asio::basic_waitable_timer<clock> inputWaitTimer;
+    bool waitingForInput {false};
+
+    enum WaitState : uint8_t { wsReady, wsRead, wsFlush, wsEOF };
+    WaitState waitState {wsRead};
+
+    // waitState == wsRead
+    time_point readTimeout;
+
     int consecutiveEOF {0};
-    bool reachedEOF {false};
+
+    TPoint viewSize;
     TRc<bool> alive {TRc<bool>::make(true)};
     std::atomic<bool> updated {false};
 
-    static thread_local char staticBuf alignas(4096) [bufSize];
-
-    PTYListener(TerminalAdapter &aTerminal, asio::io_context &io, int fd) noexcept;
+    PTYListener(TPoint size, PtyDescriptor, TerminalAdapter &aTerminal, asio::io_context &io) noexcept;
     ~PTYListener();
 
 public:
 
     TerminalAdapter &terminal;
 
-    static PTYListener &create(TerminalAdapter &aTerminal, asio::io_context &io, int fd) noexcept;
+    static PTYListener &create(TPoint size, PtyDescriptor ptyDescriptor, TerminalAdapter &aTerminal, asio::io_context &io) noexcept;
 
     void destroy();
 
     bool checkChanges();
     bool isClosed() const;
+    TPoint getSize() const noexcept;
+    void changeSize(TPoint aSize) noexcept;
 
     template <class Func>
     void run(Func &&func);
 
-    void writeOutput(std::vector<char> &&buf);
+    void writeOutput(std::vector<char> &&buf) noexcept;
 
 private:
 
-    bool streamNotEmpty();
-    void waitInput();
-    void handleReadableInput(const asio::error_code &error);
-    void doReadCycle(TSpan<const char> buf, time_point limit);
-    template <class Func>
-    void readInputUntil(time_point timeout, Func &&);
+    bool streamIsNotEmpty() noexcept;
+    void waitInput() noexcept;
+    void waitInputUntil(time_point timeout) noexcept;
+    void advanceWaitState(int, bool) noexcept;
+    void checkSize() noexcept;
 
 };
 
@@ -75,7 +87,18 @@ inline bool PTYListener::checkChanges()
 
 inline bool PTYListener::isClosed() const
 {
-    return reachedEOF;
+    return waitState == wsEOF;
+}
+
+inline TPoint PTYListener::getSize() const noexcept
+{
+    return pty.getSize();
+}
+
+inline void PTYListener::changeSize(TPoint aSize) noexcept
+{
+    viewSize = aSize;
+    checkSize();
 }
 
 #endif // TVTERM_PTYLISTEN_H

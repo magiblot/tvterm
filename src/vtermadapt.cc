@@ -19,6 +19,8 @@ const VTermScreenCallbacks VTermAdapter::callbacks =
     _static_wrap(&VTermAdapter::sb_popline),
 };
 
+thread_local TerminalSurface* VTermAdapter::lockedSurface {nullptr};
+
 namespace vtermadapt
 {
 
@@ -268,7 +270,31 @@ namespace vtermadapt
             while (TText::eat(cells, ci, text, ti))
                 ;
         }
+    }
 
+    static void drawArea( VTermScreen *vts, TPoint termSize, TRect termArea,
+                          TerminalSurface &surface )
+    {
+        if (surface.size != termSize)
+            surface.resize(termSize);
+        TRect r = termArea.intersect({{0, 0}, termSize});
+        if (0 <= r.a.x && r.a.x < r.b.x && 0 <= r.a.y && r.a.y < r.b.y)
+            for (int y = r.a.y; y < r.b.y; ++y)
+            {
+                TSpan<TScreenCell> cells(&surface.at(y, 0), surface.size.x);
+                for (int x = r.a.x; x < r.b.x; ++x)
+                {
+                    VTermScreenCell cell;
+                    if (vterm_screen_get_cell(vts, {y, x}, &cell))
+                    {
+                        convAttr(cells[x].attr, cell);
+                        convText(cells, x, cell);
+                    }
+                    else
+                        cells[x] = {};
+                }
+                surface.setDamage(y, r.a.x, r.b.x);
+            }
     }
 
 } // namespace vtermadapt
@@ -307,7 +333,11 @@ void VTermAdapter::receive(TSpan<const char> buf) noexcept
 
 void VTermAdapter::flushDamage() noexcept
 {
-    vterm_screen_flush_damage(vts);
+    getState([&] (auto &state) {
+        lockedSurface = &state.surface;
+        vterm_screen_flush_damage(vts);
+        lockedSurface = nullptr;
+    });
 }
 
 void VTermAdapter::handleKeyDown(const KeyDownEvent &keyDown) noexcept
@@ -325,18 +355,19 @@ void VTermAdapter::handleMouse(ushort what, const MouseEventType &mouse) noexcep
         wheelToArrow(vt, mouse.wheel);
 }
 
-void VTermAdapter::setSize(TPoint size) noexcept
+inline TPoint VTermAdapter::getSize() noexcept
 {
-    vterm_set_size(vt, max(size.y, 1), max(size.x, 1));
+    TPoint size;
+    vterm_get_size(vt, &size.y, &size.x);
+    return size;
 }
 
-void VTermAdapter::damageAll() noexcept
+void VTermAdapter::setSize(TPoint size) noexcept
 {
-    // Calling 'vterm_screen_flush_damage' instead of 'damage' would clear
-    // the window after a resize, causing blinking.
-    TPoint s;
-    vterm_get_size(vt, &s.y, &s.x);
-    damage({0, s.y, 0, s.x});
+    size.x = max(size.x, 1);
+    size.y = max(size.y, 1);
+    if (size != getSize())
+        vterm_set_size(vt, size.y, size.x);
 }
 
 void VTermAdapter::writeOutput(const char *data, size_t size)
@@ -347,36 +378,10 @@ void VTermAdapter::writeOutput(const char *data, size_t size)
 int VTermAdapter::damage(VTermRect rect)
 {
     using namespace vtermadapt;
-    getState([&] (auto &state) {
-        auto &surface = state.surface;
-        TRect r(rect.start_col, rect.start_row, rect.end_col, rect.end_row);
-        r.intersect({{0, 0}, surface.size});
-        if (0 <= r.a.x && r.a.x < r.b.x && 0 <= r.a.y && r.a.y < r.b.y)
-        {
-            for (int y = r.a.y; y < r.b.y; ++y)
-            {
-                TSpan<TScreenCell> cells(&surface.at(y, 0), surface.size.x);
-                for (int x = r.a.x; x < r.b.x; ++x)
-                {
-                    VTermScreenCell cell;
-                    if (vterm_screen_get_cell(vts, {y, x}, &cell))
-                    {
-                        convAttr(cells[x].attr, cell);
-                        convText(cells, x, cell);
-                    }
-                    else
-                    {
-                        // The size in 'vt' and 'vts' is sometimes mismatched and
-                        // the cell access fails.
-                        cells[x] = {};
-                    }
-                }
-                auto &damage = surface.damageAt(y);
-                damage.begin = min(r.a.x, damage.begin);
-                damage.end = max(r.b.x, damage.end);
-            }
-        }
-    });
+    if (lockedSurface)
+        drawArea( vts, getSize(),
+                  {rect.start_col, rect.start_row, rect.end_col, rect.end_row},
+                  *lockedSurface );
     return true;
 }
 

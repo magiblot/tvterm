@@ -29,6 +29,7 @@ class VTermAdapter final : public TerminalAdapter
     bool altScreenEnabled {false};
 
     static const VTermScreenCallbacks callbacks;
+    static thread_local TerminalSurface* lockedSurface;
 
     void writeOutput(const char *data, size_t size);
     int damage(VTermRect rect);
@@ -41,10 +42,10 @@ class VTermAdapter final : public TerminalAdapter
     int sb_popline(int cols, VTermScreenCell *cells);
 
     VTermScreenCell getDefaultCell() const;
+    TPoint getSize() noexcept;
 
     void receive(TSpan<const char> buf) noexcept override;
     void flushDamage() noexcept override;
-    void damageAll() noexcept override;
     void setSize(TPoint size) noexcept override;
     void handleKeyDown(const KeyDownEvent &keyDown) noexcept override;
     void handleMouse(ushort what, const MouseEventType &mouse) noexcept override;
