@@ -157,6 +157,7 @@ void TerminalActivity::advanceWaitState(int error, bool isTimeout) noexcept
             waitState = wsReady;
             return waitInput();
         case wsEOF:
+            updated = true;
             TEventQueue::wakeUp();
             return;
     }

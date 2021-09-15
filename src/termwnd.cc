@@ -48,14 +48,14 @@ void TerminalWindow::checkChanges() noexcept
     {
         view->drawView();
         bool titleUpdated = view->term.getState([&] (auto &state) {
-            return updateTitle(state);
+            return updateTitle(view->term, state);
         });
         if (titleUpdated && frame)
             frame->drawView();
     }
 }
 
-bool TerminalWindow::updateTitle(TerminalReceivedState &state) noexcept
+bool TerminalWindow::updateTitle(TerminalActivity &term, TerminalReceivedState &state) noexcept
 {
     if (state.titleChanged)
     {
@@ -63,7 +63,9 @@ bool TerminalWindow::updateTitle(TerminalReceivedState &state) noexcept
         termTitle = std::move(state.title);
         return true;
     }
-    return false;
+    // When the terminal is closed for the first time, 'state.title' does not
+    // change but we still need to redraw the title.
+    return term.isClosed();
 }
 
 void TerminalWindow::resizeTitle(size_t aCapacity)
@@ -79,9 +81,9 @@ void TerminalWindow::resizeTitle(size_t aCapacity)
 
 const char *TerminalWindow::getTitle(short)
 {
-    TStringView tail = (helpCtx == hcInputGrabbed)
-                            ? " (Input Grab)"
-                            : "";
+    TStringView tail = (view && view->term.isClosed()) ? " (Disconnected)"
+                     : (helpCtx == hcInputGrabbed)     ? " (Input Grab)"
+                                                       : "";
     TStringView text = {termTitle.data(), termTitle.size()};
     if (size_t length = text.size() + tail.size())
     {

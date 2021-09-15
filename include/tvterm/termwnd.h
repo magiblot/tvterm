@@ -20,7 +20,7 @@ class TerminalWindow : public TWindow
 
     void checkChanges() noexcept;
     void resizeTitle(size_t);
-    bool updateTitle(TerminalReceivedState &state) noexcept;
+    bool updateTitle(TerminalActivity &, TerminalReceivedState &state) noexcept;
 
 public:
 
