@@ -44,6 +44,7 @@ class VTermAdapter final : public TerminalAdapter
     VTermScreenCell getDefaultCell() const;
     TPoint getSize() noexcept;
 
+    void (&getChildActions() noexcept)() override;
     void receive(TSpan<const char> buf) noexcept override;
     void flushDamage() noexcept override;
     void setSize(TPoint size) noexcept override;

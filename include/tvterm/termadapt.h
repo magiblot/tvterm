@@ -99,12 +99,12 @@ protected:
 
     std::vector<char> writeBuffer;
 
-
 public:
 
     TerminalAdapter(TPoint size) noexcept;
     virtual ~TerminalAdapter() {}
 
+    virtual void (&getChildActions() noexcept)() = 0;
     virtual void setSize(TPoint size) noexcept = 0;
     virtual void handleKeyDown(const KeyDownEvent &keyDown) noexcept = 0;
     virtual void handleMouse(ushort what, const MouseEventType &mouse) noexcept = 0;

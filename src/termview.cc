@@ -19,7 +19,7 @@ TerminalView::TerminalView(const TRect &bounds, TerminalActivity &aTerm) noexcep
 
 TerminalView::~TerminalView()
 {
-    delete &term;
+    term.destroy();
 }
 
 void TerminalView::changeBounds(const TRect& bounds)
@@ -37,11 +37,11 @@ void TerminalView::changeBounds(const TRect& bounds)
 void TerminalView::handleEvent(TEvent &ev)
 {
     TView::handleEvent(ev);
-    bool handled = true;
     switch (ev.what)
     {
         case evKeyDown:
-            term.handleKeyDown(ev.keyDown);
+            term.sendKeyDown(ev.keyDown);
+            clearEvent(ev);
             break;
         case evMouseDown:
             do {
@@ -49,25 +49,22 @@ void TerminalView::handleEvent(TEvent &ev)
             } while (mouseEvent(ev, evMouse));
             if (ev.what == evMouseUp)
                 handleMouse(ev.what, ev.mouse);
+            clearEvent(ev);
             break;
         case evMouseWheel:
         case evMouseMove:
         case evMouseAuto:
         case evMouseUp:
             handleMouse(ev.what, ev.mouse);
-            break;
-        default:
-            handled = false;
+            clearEvent(ev);
             break;
     }
-    if (handled && ev.what != evBroadcast)
-        clearEvent(ev);
 }
 
 void TerminalView::handleMouse(ushort what, MouseEventType mouse) noexcept
 {
     mouse.where = makeLocal(mouse.where);
-    term.handleMouse(what, mouse);
+    term.sendMouse(what, mouse);
 }
 
 void TerminalView::draw()

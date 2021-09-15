@@ -326,6 +326,14 @@ VTermAdapter::~VTermAdapter()
     vterm_free(vt);
 }
 
+void (&VTermAdapter::getChildActions() noexcept)()
+{
+    return *(void (*)()) [] {
+        setenv("TERM", "xterm-256color", 1);
+        setenv("COLORTERM", "truecolor", 1);
+    };
+}
+
 void VTermAdapter::receive(TSpan<const char> buf) noexcept
 {
     vterm_input_write(vt, buf.data(), buf.size());
