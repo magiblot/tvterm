@@ -4,49 +4,18 @@
 #define Uses_TPoint
 #include <tvision/tv.h>
 
+#include <tvterm/asyncstrand.h>
 #include <tvterm/termadapt.h>
-#include <tvterm/refcnt.h>
 #include <tvterm/pty.h>
-#include <tvterm/io.h>
-#include <chrono>
 #include <atomic>
 #include <memory>
 
-class TerminalAdapter;
-
-class AsyncIOStrand
-{
-protected:
-
-    using clock = std::chrono::steady_clock;
-    using time_point = clock::time_point;
-
-    AsyncIOStrand(asio::io_context &io, int fd) noexcept;
-    ~AsyncIOStrand();
-
-    bool canReadInput() noexcept;
-    void waitInput() noexcept;
-    void waitInputUntil(time_point timeout) noexcept;
-    template <class Buffer>
-    void writeOutput(Buffer &&buf) noexcept;
-    size_t readInput(TSpan<char> buf) noexcept;
-    template <class Func>
-    void dispatch(Func &&func) noexcept;
-
-    virtual void onWaitFinish(int error, bool isTimeout) = 0;
-
-private:
-
-    asio::io_context::strand strand;
-    asio::posix::stream_descriptor descriptor;
-    asio::basic_waitable_timer<clock> inputWaitTimer;
-    bool waitingForInput {false};
-    TRc<bool> alive {TRc<bool>::make(true)};
-};
-
-class TerminalActivity final : protected AsyncIOStrand
+class TerminalActivity final : private AsyncStrandClient
 {
     friend std::default_delete<TerminalActivity>;
+
+    using clock = AsyncStrand::clock;
+    using time_point = AsyncStrand::time_point;
 
     enum { bufSize = 4096 };
     enum { maxConsecutiveEOF = 5 };
@@ -56,6 +25,7 @@ class TerminalActivity final : protected AsyncIOStrand
 
     PtyProcess pty;
     TerminalAdapter &terminal;
+    AsyncStrand async;
 
     WaitState waitState {wsRead};
     // case wsReady:
