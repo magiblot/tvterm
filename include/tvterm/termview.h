@@ -22,6 +22,7 @@ public:
 
     TerminalActivity &term;
 
+    // Takes ownership over 'aTerm'.
     TerminalView(const TRect &bounds, TerminalActivity &aTerm) noexcept;
     ~TerminalView();
 

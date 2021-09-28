@@ -47,10 +47,12 @@ class TerminalActivity final : private AsyncStrandClient
 
 public:
 
+    // Takes ownership over 'terminal'. The lifetime of 'io' must not exceed
+    // that of the result.
     static TerminalActivity *create( TPoint size, TerminalAdapter &terminal,
-                                asio::io_context &io,
-                                void (&onError)(const char *reason) ) noexcept;
-
+                                     asio::io_context &io,
+                                     void (&onError)(const char *reason) ) noexcept;
+    // Takes ownership over 'this'.
     void destroy() noexcept;
 
     bool checkChanges() noexcept;

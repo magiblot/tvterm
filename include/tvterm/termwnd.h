@@ -27,6 +27,7 @@ public:
 
     static TCommandSet focusedCmds;
 
+    // Takes ownership over 'aTerm'.
     TerminalWindow(const TRect &bounds, TerminalActivity &aTerm);
 
     void shutDown() override;

@@ -16,6 +16,7 @@ public:
 
     TerminalFrame(const TRect &bounds);
 
+    // If not null, the lifetime of 'term' must exceed that of 'this'.
     void setTerm(TerminalActivity *term);
 
     void draw() override;

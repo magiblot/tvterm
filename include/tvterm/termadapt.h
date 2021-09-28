@@ -113,6 +113,8 @@ public:
 
     std::vector<char> takeWriteBuffer() noexcept;
     template <class Func>
+    // This method locks a mutex, so reentrance will lead to a deadlock.
+    // * 'func' takes a 'TerminalReceivedState &' by parameter.
     auto getState(Func &&func);
 
 };
