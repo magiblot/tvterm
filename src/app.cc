@@ -131,13 +131,21 @@ Boolean TVTermApp::valid(ushort command)
 {
     if (command == cmQuit)
     {
-        auto isTerm =
-            [] (TView *p, void *) -> Boolean { return message(p, evCommand, cmIsTerm, nullptr); };
-        if (deskTop->firstThat(isTerm, nullptr))
+        auto getOpenTerms = [] (TView *p, void *infoPtr)
         {
-            return messageBox( "There are open terminal windows.\n"
-                               "Do you still want to quit?",
-                               mfConfirmation | mfYesButton | mfNoButton ) == cmYes;
+            message(p, evBroadcast, cmGetOpenTerms, infoPtr);
+        };
+        size_t count = 0;
+        deskTop->forEach(getOpenTerms, &count);
+        if (count > 0)
+        {
+            auto *format = (count == 1)
+                ? "There is %zu open terminal window.\nDo you want to quit anyway?"
+                : "There are %zu open terminal windows.\nDo you want to quit anyway?";
+            return messageBox(
+                mfConfirmation | mfYesButton | mfNoButton,
+                format, count
+            ) == cmYes;
         }
         return True;
     }

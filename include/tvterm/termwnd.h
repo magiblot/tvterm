@@ -21,6 +21,7 @@ class TerminalWindow : public TWindow
     void checkChanges() noexcept;
     void resizeTitle(size_t);
     bool updateTitle(TerminalActivity &, TerminalReceivedState &state) noexcept;
+    bool isClosed() const noexcept;
 
 public:
 

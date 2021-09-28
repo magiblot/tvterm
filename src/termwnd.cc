@@ -79,11 +79,16 @@ void TerminalWindow::resizeTitle(size_t aCapacity)
     }
 }
 
+inline bool TerminalWindow::isClosed() const noexcept
+{
+    return !view || view->term.isClosed();
+}
+
 const char *TerminalWindow::getTitle(short)
 {
-    TStringView tail = (view && view->term.isClosed()) ? " (Disconnected)"
-                     : (helpCtx == hcInputGrabbed)     ? " (Input Grab)"
-                                                       : "";
+    TStringView tail = (isClosed())                ? " (Disconnected)"
+                     : (helpCtx == hcInputGrabbed) ? " (Input Grab)"
+                                                   : "";
     TStringView text = {termTitle.data(), termTitle.size()};
     if (size_t length = text.size() + tail.size())
     {
@@ -112,10 +117,6 @@ void TerminalWindow::handleEvent(TEvent &ev)
                         clearEvent(ev);
                     }
                     break;
-                case cmIsTerm:
-                    ev.message.infoPtr = this;
-                    clearEvent(ev);
-                    break;
                 case cmClose:
                 case cmReleaseInput:
                     if (state & sfModal)
@@ -129,8 +130,16 @@ void TerminalWindow::handleEvent(TEvent &ev)
             }
             break;
         case evBroadcast:
-            if (ev.message.command == cmIdle)
-                checkChanges();
+            switch (ev.message.command)
+            {
+                case cmIdle:
+                    checkChanges();
+                    break;
+                case cmGetOpenTerms:
+                    if (!isClosed())
+                        *(size_t *) ev.message.infoPtr += 1;
+                    break;
+            }
             break;
         case evMouseDown:
             if ((state & sfModal) && !mouseInView(ev.mouse.where))
@@ -144,7 +153,7 @@ void TerminalWindow::handleEvent(TEvent &ev)
             canClose = true;
             break;
     }
-    if (view && view->term.isClosed() && !(state & sfDragging))
+    if (isClosed() && !(state & sfDragging))
     {
         if (state & sfModal)
             endModal(cmCancel);
