@@ -3,7 +3,8 @@
 
 #include <thread>
 #include <vector>
-#include <asio.hpp>
+#include <asio/io_context.hpp>
+#include <asio/executor_work_guard.hpp>
 
 class IOContext
 {

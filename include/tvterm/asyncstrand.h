@@ -4,6 +4,13 @@
 #include <tvterm/refcnt.h>
 #include <tvterm/io.h>
 #include <chrono>
+#include <asio/write.hpp>
+#include <asio/buffer.hpp>
+#include <asio/dispatch.hpp>
+#include <asio/bind_executor.hpp>
+#include <asio/io_context_strand.hpp>
+#include <asio/basic_waitable_timer.hpp>
+#include <asio/posix/stream_descriptor.hpp>
 
 template <class T>
 class TSpan;
