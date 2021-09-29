@@ -25,13 +25,16 @@ TerminalView::~TerminalView()
 void TerminalView::changeBounds(const TRect& bounds)
 {
     setBounds(bounds);
-    term.getState([&] (auto &state) {
-        // If by the time 'draw()' gets called the surface still hasn't been
-        // redrawn, at least copy the whole surface.
-        state.surface.damageAll();
-    });
+    ownerBufferChanged = true;
     drawView();
     term.changeSize(size);
+}
+
+void TerminalView::setState(ushort aState, bool enable)
+{
+    if (aState == sfExposed && enable != !!(state & sfExposed))
+        ownerBufferChanged = true;
+    TView::setState(aState, enable);
 }
 
 void TerminalView::handleEvent(TEvent &ev)
@@ -86,20 +89,41 @@ void TerminalView::updateCursor(TerminalReceivedState &state) noexcept
     }
 }
 
+static TerminalSurface::Range rangeToCopy(int y, const TRect &r, TerminalSurface &surface, bool reuseBuffer)
+{
+    auto &damage = surface.damageAt(y);
+    if (reuseBuffer)
+        return {
+            max(r.a.x, damage.begin),
+            min(r.b.x, damage.end),
+        };
+    else
+        return {r.a.x, r.b.x};
+}
+
 void TerminalView::updateDisplay(TerminalSurface &surface) noexcept
 {
+    bool reuseBuffer = canReuseOwnerBuffer();
     TRect r = getExtent().intersect({{0, 0}, surface.size});
     if (0 <= r.a.x && r.a.x < r.b.x && 0 <= r.a.y && r.a.y < r.b.y)
     {
         for (int y = r.a.y; y < r.b.y; ++y)
         {
-            auto &damage = surface.damageAt(y);
-            int begin = max(r.a.x, damage.begin);
-            int end = min(r.b.x, damage.end);
-            writeLine(begin, y, end - begin, 1, &surface.at(y, begin));
+            auto c = rangeToCopy(y, r, surface, reuseBuffer);
+            writeLine(c.begin, y, c.end - c.begin, 1, &surface.at(y, c.begin));
         }
-        surface.clearAllDamage();
+        surface.clearDamage();
         // We don't need to draw the area that is not filled by the surface.
-        // It will be blank or will still contain the surface's previous contents.
+        // It will be blank.
     }
+}
+
+bool TerminalView::canReuseOwnerBuffer() noexcept
+{
+    if (ownerBufferChanged)
+    {
+        ownerBufferChanged = false;
+        return false;
+    }
+    return owner && owner->buffer;
 }

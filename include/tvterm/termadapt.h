@@ -23,12 +23,10 @@ public:
     using TDrawSurface::size;
 
     void resize(TPoint aSize);
-    void clearAllDamage();
-    void damageAll();
+    void clearDamage();
     using TDrawSurface::at;
     Range &damageAt(size_t y);
     void setDamage(size_t y, int begin, int end);
-    void clearDamage(size_t y, int begin, int end);
 
 private:
 
@@ -41,20 +39,14 @@ inline void TerminalSurface::resize(TPoint aSize)
     {
         TDrawSurface::resize(aSize);
         // The surface's contents are irrelevant after the resize.
-        clearAllDamage();
+        clearDamage();
     }
 }
 
-inline void TerminalSurface::clearAllDamage()
+inline void TerminalSurface::clearDamage()
 {
     rowDamage.resize(0);
     rowDamage.resize(max(0, size.y), {INT_MAX, INT_MIN});
-}
-
-inline void TerminalSurface::damageAll()
-{
-    rowDamage.resize(0);
-    rowDamage.resize(max(0, size.y), {INT_MIN, INT_MAX});
 }
 
 inline TerminalSurface::Range &TerminalSurface::damageAt(size_t y)
@@ -69,15 +61,6 @@ inline void TerminalSurface::setDamage(size_t y, int begin, int end)
         min(begin, damage.begin),
         max(end, damage.end),
     };
-}
-
-inline void TerminalSurface::clearDamage(size_t y, int begin, int end)
-{
-    auto &damage = damageAt(y);
-    if (begin <= damage.begin)
-        damage.begin = max(damage.begin, end);
-    if (damage.end <= end)
-        damage.end = min(damage.end, begin);
 }
 
 struct TerminalReceivedState
