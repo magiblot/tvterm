@@ -97,8 +97,11 @@ void TerminalActivity::checkSize() noexcept
     if (waitState != wsRead && viewSizeChanged)
     {
         viewSizeChanged = false;
-        pty.setSize(viewSize);
         terminal.setSize(viewSize);
+        if (isClosed())
+            updated = true;
+        else
+            pty.setSize(viewSize);
     }
 }
 
