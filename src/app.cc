@@ -127,17 +127,22 @@ void TVTermApp::handleEvent(TEvent &event)
         clearEvent(event);
 }
 
+size_t TVTermApp::getOpenTermCount()
+{
+    auto getOpenTerms = [] (TView *p, void *infoPtr)
+    {
+        message(p, evBroadcast, cmGetOpenTerms, infoPtr);
+    };
+    size_t count = 0;
+    deskTop->forEach(getOpenTerms, &count);
+    return count;
+}
+
 Boolean TVTermApp::valid(ushort command)
 {
     if (command == cmQuit)
     {
-        auto getOpenTerms = [] (TView *p, void *infoPtr)
-        {
-            message(p, evBroadcast, cmGetOpenTerms, infoPtr);
-        };
-        size_t count = 0;
-        deskTop->forEach(getOpenTerms, &count);
-        if (count > 0)
+        if (size_t count = getOpenTermCount())
         {
             auto *format = (count == 1)
                 ? "There is %zu open terminal window.\nDo you want to quit anyway?"
@@ -174,10 +179,11 @@ static void onTermError(const char *reason)
 
 void TVTermApp::newTerm()
 {
+    io.makeRoom(getOpenTermCount() + 1);
     TRect r = deskTop->getExtent();
     TPoint size = TerminalWindow::viewSize(r);
     auto &terminal = *new VTermAdapter(size);
-    auto *term = TerminalActivity::create(size, terminal, io, onTermError);
+    auto *term = TerminalActivity::create(size, terminal, io.getContext(), onTermError);
     if (term)
         insertWindow(new TerminalWindow(r, *term));
 }

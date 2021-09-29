@@ -4,12 +4,17 @@
 #include <chrono>
 
 IOContext::IOContext() :
+    maxThreads(std::thread::hardware_concurrency()),
     work(io.get_executor())
 {
-    size_t n = std::thread::hardware_concurrency();
-    threads.reserve(n);
-    for (size_t i = 0; i < n; ++i)
-        threads.emplace_back(&IOContext::run, this, std::ref(io));
+    threads.reserve(maxThreads);
+}
+
+void IOContext::makeRoom(size_t count)
+{
+    size_t newCount = count < maxThreads ? count : maxThreads;
+    for (size_t i = threads.size(); i < newCount; ++i)
+        threads.emplace_back(&IOContext::run, this);
 }
 
 IOContext::~IOContext()
@@ -20,7 +25,7 @@ IOContext::~IOContext()
         thread.join();
 }
 
-void IOContext::run(asio::io_context &io)
+void IOContext::run()
 {
     io.run();
 }

@@ -28,6 +28,8 @@ struct TVTermApp : public TApplication
     Boolean valid(ushort command) override;
     void idle() override;
 
+    size_t getOpenTermCount();
+
     // Command handlers
 
     void newTerm();

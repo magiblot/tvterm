@@ -8,34 +8,24 @@
 
 class IOContext
 {
-public:
-
-    asio::io_context io;
-
-private:
-
     std::vector<std::thread> threads;
+    const size_t maxThreads;
+    asio::io_context io;
     asio::executor_work_guard<decltype(io.get_executor())> work;
+
+    void run();
 
 public:
 
     IOContext();
     ~IOContext();
 
-    operator asio::io_context& ()
+    void makeRoom(size_t strandCount);
+
+    asio::io_context& getContext()
     {
         return io;
     }
-
-    operator const asio::io_context& () const
-    {
-        return io;
-    }
-
-private:
-
-    void run(asio::io_context &io);
-
 };
 
 #endif // TVTERM_IO_H
