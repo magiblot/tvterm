@@ -1,6 +1,6 @@
 #include <tvterm/termactiv.h>
 
-#define Uses_TEventQueue
+#define Uses_TEvent
 #include <tvision/tv.h>
 
 inline TerminalActivity::TerminalActivity( PtyDescriptor ptyDescriptor,
@@ -80,13 +80,13 @@ void TerminalActivity::advanceWaitState(int error, bool isTimeout) noexcept
             terminal.flushDamage();
             checkSize();
             updated = true;
-            TEventQueue::wakeUp();
+            TEvent::putNothing();
             async.writeOutput(terminal.takeWriteBuffer());
             waitState = wsReady;
             return async.waitInput();
         case wsEOF:
             updated = true;
-            TEventQueue::wakeUp();
+            TEvent::putNothing();
             return;
     }
     advanceWaitState(0, false);
