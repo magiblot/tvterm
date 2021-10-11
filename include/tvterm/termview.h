@@ -5,19 +5,18 @@
 #define Uses_TGroup
 #include <tvision/tv.h>
 
-
 struct MouseEventType;
 
 class TerminalActivity;
 class TerminalSurface;
-struct TerminalReceivedState;
+struct TerminalSharedState;
 
 class TerminalView : public TView
 {
     bool ownerBufferChanged {false};
 
     void handleMouse(ushort what, MouseEventType mouse) noexcept;
-    void updateCursor(TerminalReceivedState &state) noexcept;
+    void updateCursor(TerminalSharedState &state) noexcept;
     void updateDisplay(TerminalSurface &surface) noexcept;
     bool canReuseOwnerBuffer() noexcept;
 

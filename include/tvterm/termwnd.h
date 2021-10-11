@@ -8,7 +8,7 @@
 
 class TerminalView;
 class TerminalActivity;
-struct TerminalReceivedState;
+struct TerminalSharedState;
 
 class TerminalWindow : public TWindow
 {
@@ -21,7 +21,7 @@ class TerminalWindow : public TWindow
 
     void checkChanges() noexcept;
     void resizeTitle(size_t);
-    bool updateTitle(TerminalActivity &, TerminalReceivedState &state) noexcept;
+    bool updateTitle(TerminalActivity &, TerminalSharedState &state) noexcept;
     bool isClosed() const noexcept;
 
 public:

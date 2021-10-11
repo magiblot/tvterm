@@ -78,7 +78,7 @@ void TerminalView::draw()
     });
 }
 
-void TerminalView::updateCursor(TerminalReceivedState &state) noexcept
+void TerminalView::updateCursor(TerminalSharedState &state) noexcept
 {
     if (state.cursorChanged)
     {

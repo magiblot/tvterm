@@ -14,7 +14,7 @@ class TerminalSurface : private TDrawSurface
 {
     // A TDrawSurface that can keep track of the areas that were modified.
     // Otherwise, the view displaying this surface would have to copy all of
-    // it, which doesn't scale well when using big resolutions.
+    // it every time, which doesn't scale well when using big resolutions.
 
 public:
 
@@ -38,7 +38,7 @@ inline void TerminalSurface::resize(TPoint aSize)
     if (aSize != size)
     {
         TDrawSurface::resize(aSize);
-        // The surface's contents are irrelevant after the resize.
+        // The surface's contents are not relevant after the resize.
         clearDamage();
     }
 }
@@ -63,7 +63,7 @@ inline void TerminalSurface::setDamage(size_t y, int begin, int end)
     };
 }
 
-struct TerminalReceivedState
+struct TerminalSharedState
 {
     TerminalSurface surface;
     bool cursorChanged {false};
@@ -76,7 +76,7 @@ struct TerminalReceivedState
 
 class TerminalAdapter
 {
-    TMutex<TerminalReceivedState> mState;
+    TMutex<TerminalSharedState> mState;
 
 protected:
 
@@ -97,7 +97,7 @@ public:
     std::vector<char> takeWriteBuffer() noexcept;
     template <class Func>
     // This method locks a mutex, so reentrance will lead to a deadlock.
-    // * 'func' takes a 'TerminalReceivedState &' by parameter.
+    // * 'func' takes a 'TerminalSharedState &' by parameter.
     auto getState(Func &&func);
 
 };
