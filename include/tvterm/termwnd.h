@@ -15,6 +15,7 @@ class TerminalWindow : public TWindow
     TerminalView *view {nullptr};
     size_t titleCapacity {0};
     std::vector<char> termTitle;
+    TPoint lastTermSize {0, 0};
 
     static TFrame *initFrame(TRect);
 

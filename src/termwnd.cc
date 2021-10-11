@@ -44,13 +44,21 @@ void TerminalWindow::shutDown()
 
 void TerminalWindow::checkChanges() noexcept
 {
-    if (view && view->term.checkChanges())
+    bool frameChanged = false;
+    if (view)
     {
-        view->drawView();
-        bool titleUpdated = view->term.getState([&] (auto &state) {
-            return updateTitle(view->term, state);
-        });
-        if (titleUpdated && frame)
+        auto &term = view->term;
+        if (term.checkChanges())
+        {
+            view->drawView();
+            frameChanged |= term.getState([&] (auto &state) {
+                return updateTitle(term, state);
+            });
+        }
+        auto termSize = term.getSize();
+        frameChanged |= lastTermSize != termSize;
+        lastTermSize = termSize;
+        if (frame && frameChanged)
             frame->drawView();
     }
 }
