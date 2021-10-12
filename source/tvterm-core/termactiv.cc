@@ -117,6 +117,14 @@ void TerminalActivity::changeSize(TPoint aSize) noexcept
     });
 }
 
+void TerminalActivity::sendFocus(bool focus) noexcept
+{
+    async.dispatch([this, focus] {
+        terminal.setFocus(focus);
+        async.writeOutput(terminal.takeWriteBuffer());
+    });
+}
+
 void TerminalActivity::sendKeyDown(const KeyDownEvent &keyDown) noexcept
 {
     async.dispatch([this, keyDown] {

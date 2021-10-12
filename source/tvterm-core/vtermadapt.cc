@@ -382,6 +382,14 @@ void VTermAdapter::setSize(TPoint size) noexcept
         vterm_set_size(vt, size.y, size.x);
 }
 
+void VTermAdapter::setFocus(bool focus) noexcept
+{
+    if (focus)
+        vterm_state_focus_in(state);
+    else
+        vterm_state_focus_out(state);
+}
+
 void VTermAdapter::writeOutput(const char *data, size_t size)
 {
     writeBuffer.push(data, size);

@@ -62,6 +62,7 @@ public:
     bool isClosed() const noexcept;
     TPoint getSize() const noexcept;
     void changeSize(TPoint aSize) noexcept;
+    void sendFocus(bool focus) noexcept;
     void sendKeyDown(const KeyDownEvent &keyDown) noexcept;
     void sendMouse(ushort what, const MouseEventType &mouse) noexcept;
 

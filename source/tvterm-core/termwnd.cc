@@ -158,6 +158,8 @@ void BasicTerminalWindow::setState(ushort aState, Boolean enable)
                 enableCommand(cmd);
             else
                 disableCommand(cmd);
+        if (view)
+            view->term.sendFocus(enable);
     }
 }
 

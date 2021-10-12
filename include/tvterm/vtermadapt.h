@@ -51,6 +51,7 @@ class VTermAdapter final : public TerminalAdapter
     void receive(TSpan<const char> buf) noexcept override;
     void flushDamage() noexcept override;
     void setSize(TPoint size) noexcept override;
+    void setFocus(bool focus) noexcept override;
     void handleKeyDown(const KeyDownEvent &keyDown) noexcept override;
     void handleMouse(ushort what, const MouseEventType &mouse) noexcept override;
 
