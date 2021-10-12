@@ -14,7 +14,7 @@
 #include "app.h"
 #include "cmds.h"
 #include "desk.h"
-#include "termwnd.h"
+#include "wnd.h"
 #include "apputil.h"
 #include <tvterm/termactiv.h>
 #include <tvterm/vtermadapt.h>
@@ -50,7 +50,8 @@ TVTermApp::TVTermApp() :
     checkTerms(false)
 {
     disableCommands(tileCmds);
-    disableCommands(TerminalWindow::focusedCmds);
+    for (ushort cmd : TerminalWindow::appConsts.focusedCmds())
+        disableCommand(cmd);
     newTerm();
 }
 
