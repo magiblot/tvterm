@@ -26,7 +26,7 @@ class VTermAdapter final : public TerminalAdapter
     struct VTerm *vt;
     struct VTermState *state;
     struct VTermScreen *vts;
-    std::vector<char> strFragBuf;
+    ByteArray strFragBuf;
     LineStack linestack;
     bool mouseEnabled {false};
     bool altScreenEnabled {false};

@@ -384,7 +384,7 @@ void VTermAdapter::setSize(TPoint size) noexcept
 
 void VTermAdapter::writeOutput(const char *data, size_t size)
 {
-    writeBuffer.insert(writeBuffer.end(), data, data + size);
+    writeBuffer.push(data, size);
 }
 
 int VTermAdapter::damage(VTermRect rect)
@@ -418,8 +418,8 @@ int VTermAdapter::settermprop(VTermProp prop, VTermValue *val)
     if (vterm_get_prop_type(prop) == VTERM_VALUETYPE_STRING)
     {
         if (val->string.initial)
-            strFragBuf.resize(0);
-        strFragBuf.insert(strFragBuf.end(), val->string.str, val->string.str + val->string.len);
+            strFragBuf.clear();
+        strFragBuf.push(val->string.str, val->string.len);
         if (!val->string.final)
             return true;
     }

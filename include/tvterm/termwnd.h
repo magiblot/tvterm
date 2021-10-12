@@ -1,10 +1,11 @@
 #ifndef TVTERM_TERMWND_H
 #define TVTERM_TERMWND_H
 
+#include <tvterm/array.h>
+
 #define Uses_TWindow
 #define Uses_TCommandSet
 #include <tvision/tv.h>
-#include <vector>
 
 namespace tvterm
 {
@@ -31,7 +32,7 @@ class BasicTerminalWindow : public TWindow
     const BasicTerminalWindowAppConstants &appConsts;
     TerminalView *view {nullptr};
     size_t titleCapacity {0};
-    std::vector<char> termTitle;
+    ByteArray termTitle;
     TPoint lastTermSize {0, 0};
 
     void checkChanges() noexcept;

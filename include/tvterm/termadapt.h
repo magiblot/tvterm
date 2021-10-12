@@ -1,6 +1,7 @@
 #ifndef TVTERM_TERMADAPT_H
 #define TVTERM_TERMADAPT_H
 
+#include <tvterm/array.h>
 #include <tvterm/mutex.h>
 #include <vector>
 
@@ -74,7 +75,7 @@ struct TerminalSharedState
     bool cursorVisible {false};
     bool cursorBlink {false};
     bool titleChanged {false};
-    std::vector<char> title;
+    ByteArray title;
 };
 
 class TerminalAdapter
@@ -83,7 +84,7 @@ class TerminalAdapter
 
 protected:
 
-    std::vector<char> writeBuffer;
+    ByteArray writeBuffer;
 
 public:
 
@@ -97,7 +98,7 @@ public:
     virtual void receive(TSpan<const char> buf) noexcept = 0;
     virtual void flushDamage() noexcept = 0;
 
-    std::vector<char> takeWriteBuffer() noexcept;
+    ByteArray takeWriteBuffer() noexcept;
     template <class Func>
     // This method locks a mutex, so reentrance will lead to a deadlock.
     // * 'func' takes a 'TerminalSharedState &' by parameter.
@@ -110,7 +111,7 @@ inline TerminalAdapter::TerminalAdapter(TPoint size) noexcept
     mState.get().surface.resize(size);
 }
 
-inline std::vector<char> TerminalAdapter::takeWriteBuffer() noexcept
+inline ByteArray TerminalAdapter::takeWriteBuffer() noexcept
 {
     return std::move(writeBuffer);
 }
