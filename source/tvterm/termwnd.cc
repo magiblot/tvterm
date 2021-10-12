@@ -3,11 +3,11 @@
 #define Uses_TStaticText
 #include <tvision/tv.h>
 
-#include <tvterm/termwnd.h>
+#include "cmds.h"
+#include "termwnd.h"
 #include <tvterm/termview.h>
 #include <tvterm/termframe.h>
 #include <tvterm/termactiv.h>
-#include <tvterm/cmds.h>
 
 TCommandSet TerminalWindow::focusedCmds = []()
 {

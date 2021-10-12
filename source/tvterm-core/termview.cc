@@ -1,7 +1,5 @@
-#include <tvterm/cmds.h>
 #include <tvterm/termview.h>
 #include <tvterm/termactiv.h>
-#include <tvterm/debug.h>
 
 #define Uses_TKeys
 #define Uses_TEvent

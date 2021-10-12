@@ -5,7 +5,8 @@
 !deps/
 !include/
 !include/*/
-!src/
+!source/
+!source/*/
 *.bak
 *.dsw
 *.csm

@@ -1,10 +1,11 @@
 #define Uses_TText
 #define Uses_TKeys
+#define Uses_TEvent
 #include <tvision/tv.h>
 
+#include "util.h"
 #include <tvterm/vtermadapt.h>
 #include <tvterm/debug.h>
-#include <tvterm/util.h>
 #include <unordered_map>
 
 const VTermScreenCallbacks VTermAdapter::callbacks =

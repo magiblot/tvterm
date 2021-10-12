@@ -1,6 +1,7 @@
 #ifndef TVTERM_REFCNT_H
 #define TVTERM_REFCNT_H
 
+#include <stddef.h>
 #include <atomic>
 
 struct AtomicOps

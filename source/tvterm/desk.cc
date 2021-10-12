@@ -1,4 +1,4 @@
-#include <tvterm/desk.h>
+#include "desk.h"
 
 TVTermDesk::TVTermDesk(const TRect &bounds) :
     TDeskInit(&TDeskTop::initBackground),

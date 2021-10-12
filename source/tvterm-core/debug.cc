@@ -22,3 +22,4 @@ DebugCout::DebugCout() :
     const char *env = getenv("TVTERM_DEBUG");
     enabled = env && *env;
 }
+

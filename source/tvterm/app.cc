@@ -11,11 +11,11 @@
 #define Uses_MsgBox
 #include <tvision/tv.h>
 
-#include <tvterm/app.h>
-#include <tvterm/cmds.h>
-#include <tvterm/desk.h>
-#include <tvterm/util.h>
-#include <tvterm/termwnd.h>
+#include "app.h"
+#include "cmds.h"
+#include "desk.h"
+#include "termwnd.h"
+#include "apputil.h"
 #include <tvterm/termactiv.h>
 #include <tvterm/vtermadapt.h>
 
@@ -33,7 +33,7 @@ TCommandSet TVTermApp::tileCmds = []()
     return ts;
 }();
 
-void tvterm_main(int, char**)
+int main(int, char**)
 {
     TVTermApp app;
     TVTermApp::app = &app;

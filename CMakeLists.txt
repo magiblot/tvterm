@@ -1,36 +1,74 @@
 cmake_minimum_required(VERSION 3.5)
 
-option(TVTERM_BUILD_OPT "Enable build optimizations (Unity Build, Precompiled Headers)" ON)
+option(TVTERM_BUILD_APP "Build main application" ON)
+option(TVTERM_USE_SYSTEM_TVISION "Use system-wide Turbo Vision instead of the submodule" OFF)
+option(TVTERM_OPTIMIZE_BUILD "Enable build optimizations (Unity Build, Precompiled Headers)" ON)
 
 project(tvterm)
 
-# Target 'tvterm'
-
-file(GLOB_RECURSE TVTERM_SRC
-    "${CMAKE_CURRENT_LIST_DIR}/src/*.cc"
-)
-
-add_executable(${PROJECT_NAME} ${TVTERM_SRC})
-
-target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_14)
-target_include_directories(${PROJECT_NAME} PRIVATE
-    "${CMAKE_CURRENT_LIST_DIR}/include"
-)
+function(tvterm_set_warnings t)
+    if (NOT ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC"))
+        target_compile_options(${t} PRIVATE
+            -Wall
+        )
+    endif()
+endfunction()
 
 # Dependencies
 
-find_library(VTERM vterm)
-find_library(UTIL util)
-add_subdirectory(deps/tvision)
+include(deps/CMakeLists.txt)
 
-target_link_libraries(${PROJECT_NAME} tvision ${VTERM} ${UTIL} pthread)
+# Target 'tvterm-core'
+
+file(GLOB_RECURSE TVTERM_CORE_SRC "${CMAKE_CURRENT_LIST_DIR}/source/tvterm-core/*.cc")
+add_library(tvterm-core ${TVTERM_CORE_SRC})
+
+tvterm_set_warnings(tvterm-core)
+target_include_directories(tvterm-core PUBLIC
+    "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>"
+    "$<INSTALL_INTERFACE:include>"
+)
+target_include_directories(tvterm-core PRIVATE
+    "${CMAKE_CURRENT_LIST_DIR}/source/tvterm-core"
+)
+target_link_libraries(tvterm-core PUBLIC
+    tvision
+    vterm
+    util
+    pthread
+)
+install(TARGETS vterm util pthread EXPORT tvterm-config)
+install(TARGETS tvterm-core
+    EXPORT tvterm-config
+    ARCHIVE DESTINATION lib
+    COMPONENT library
+)
+install(EXPORT tvterm-config
+    DESTINATION lib/cmake/tvterm
+    NAMESPACE tvterm::
+    FILE tvterm-config.cmake
+    COMPONENT library
+)
+install(DIRECTORY "${CMAKE_CURRENT_LIST_DIR}/include/tvterm" DESTINATION include)
+
+# Target 'tvterm'
+
+if (TVTERM_BUILD_APP)
+    file(GLOB_RECURSE TVTERM_SRC "${CMAKE_CURRENT_LIST_DIR}/source/tvterm/*.cc")
+    add_executable(tvterm ${TVTERM_SRC})
+    tvterm_set_warnings(tvterm)
+    target_link_libraries(tvterm PRIVATE
+        tvterm-core
+    )
+    install(TARGETS tvterm RUNTIME DESTINATION bin)
+endif()
 
 # Build optimization
 
 if (${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.16.0")
-    if (TVTERM_BUILD_OPT)
-        set_target_properties(${PROJECT_NAME} PROPERTIES UNITY_BUILD ON)
-        target_precompile_headers(${PROJECT_NAME} PRIVATE
+    if (TVTERM_OPTIMIZE_BUILD)
+        set_target_properties(tvterm PROPERTIES UNITY_BUILD ON)
+        target_precompile_headers(tvterm PRIVATE
             "${CMAKE_CURRENT_LIST_DIR}/include/pch.h"
         )
     endif()
