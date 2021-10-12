@@ -9,23 +9,23 @@ namespace tvterm
 
 class TerminalActivity;
 
-class TerminalFrame : public TFrame
+class BasicTerminalFrame : public TFrame
 {
     TerminalActivity *term;
 
-    void drawSize();
+    void drawSize() noexcept;
 
 public:
 
-    TerminalFrame(const TRect &bounds);
+    BasicTerminalFrame(const TRect &bounds) noexcept;
 
     // If not null, the lifetime of 'term' must exceed that of 'this'.
-    void setTerm(TerminalActivity *term);
+    void setTerm(TerminalActivity *term) noexcept;
 
     void draw() override;
 };
 
-inline void TerminalFrame::setTerm(TerminalActivity *aTerm)
+inline void BasicTerminalFrame::setTerm(TerminalActivity *aTerm) noexcept
 {
     term = aTerm;
 }

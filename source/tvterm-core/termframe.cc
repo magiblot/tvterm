@@ -7,20 +7,20 @@
 namespace tvterm
 {
 
-TerminalFrame::TerminalFrame(const TRect &bounds) :
+BasicTerminalFrame::BasicTerminalFrame(const TRect &bounds) noexcept :
     TFrame(bounds),
     term(nullptr)
 {
 }
 
-void TerminalFrame::draw()
+void BasicTerminalFrame::draw()
 {
     TFrame::draw();
     if (term)
         drawSize();
 }
 
-void TerminalFrame::drawSize()
+void BasicTerminalFrame::drawSize() noexcept
 // Pre: 'term' != nullptr.
 {
     if (state & sfDragging)

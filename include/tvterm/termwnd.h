@@ -48,7 +48,7 @@ public:
 
     // Takes ownership over 'aTerm'.
     // The lifetime of 'aAppConsts' must exceed that of 'this'.
-    // Assumes 'this->TWindow::frame' to be a TerminalFrame.
+    // Assumes 'this->TWindow::frame' to be a BasicTerminalFrame.
     BasicTerminalWindow( const TRect &bounds, TerminalActivity &aTerm,
                          const BasicTerminalWindowAppConstants &aAppConsts ) noexcept;
 

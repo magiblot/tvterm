@@ -13,7 +13,7 @@ namespace tvterm
 
 TFrame *BasicTerminalWindow::initFrame(TRect bounds)
 {
-    return new TerminalFrame(bounds);
+    return new BasicTerminalFrame(bounds);
 }
 
 BasicTerminalWindow::BasicTerminalWindow( const TRect &bounds,
@@ -27,7 +27,7 @@ BasicTerminalWindow::BasicTerminalWindow( const TRect &bounds,
     options |= ofTileable;
     eventMask |= evBroadcast;
     setState(sfShadow, False);
-    ((TerminalFrame *) frame)->setTerm(&aTerm);
+    ((BasicTerminalFrame *) frame)->setTerm(&aTerm);
     view = new TerminalView(getExtent().grow(-1, -1), aTerm);
     insert(view);
 }
@@ -35,7 +35,7 @@ BasicTerminalWindow::BasicTerminalWindow( const TRect &bounds,
 void BasicTerminalWindow::shutDown()
 {
     if (frame)
-        ((TerminalFrame *) frame)->setTerm(nullptr);
+        ((BasicTerminalFrame *) frame)->setTerm(nullptr);
     view = nullptr;
     TWindow::shutDown();
 }
