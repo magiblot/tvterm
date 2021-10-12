@@ -15,6 +15,9 @@
 template <class T>
 class TSpan;
 
+namespace tvterm
+{
+
 class AsyncStrandClient
 {
 public:
@@ -88,5 +91,7 @@ inline void AsyncStrand::dispatch(Func &&func) noexcept
 {
     asio::dispatch(strand, std::move(func));
 }
+
+} // namespace tvterm
 
 #endif // TVTERM_ASYNCSTRAND_H

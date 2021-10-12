@@ -10,6 +10,9 @@
 struct KeyDownEvent;
 struct MouseEventType;
 
+namespace tvterm
+{
+
 class TerminalSurface : private TDrawSurface
 {
     // A TDrawSurface that can keep track of the areas that were modified.
@@ -117,5 +120,7 @@ inline auto TerminalAdapter::getState(Func &&func)
 {
     return mState.lock(std::move(func));
 }
+
+} // namespace tvterm
 
 #endif // TVTERM_TERMADAPT_H

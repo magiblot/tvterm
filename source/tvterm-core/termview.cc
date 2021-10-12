@@ -5,6 +5,9 @@
 #define Uses_TEvent
 #include <tvision/tv.h>
 
+namespace tvterm
+{
+
 TerminalView::TerminalView(const TRect &bounds, TerminalActivity &aTerm) noexcept :
     TView(bounds),
     term(aTerm)
@@ -125,3 +128,5 @@ bool TerminalView::canReuseOwnerBuffer() noexcept
     }
     return owner && owner->buffer;
 }
+
+} // namespace tvterm

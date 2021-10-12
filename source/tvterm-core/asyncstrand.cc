@@ -2,6 +2,9 @@
 
 #include <tvision/tv.h>
 
+namespace tvterm
+{
+
 void AsyncStrand::waitInput() noexcept
 {
     if (!waitingForInput)
@@ -47,3 +50,5 @@ size_t AsyncStrand::readInput(TSpan<char> buf) noexcept
     asio::error_code ec;
     return descriptor.read_some(asio::buffer(buf.data(), buf.size()), ec);
 }
+
+} // namespace tvterm

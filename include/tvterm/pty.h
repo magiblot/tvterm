@@ -7,6 +7,9 @@ template <class T>
 class TSpan;
 class TPoint;
 
+namespace tvterm
+{
+
 struct PtyDescriptor
 {
     int master_fd;
@@ -49,5 +52,7 @@ inline int PtyProcess::getMaster() const noexcept
 {
     return master_fd;
 }
+
+} // namespace tvterm
 
 #endif // TVTERM_PTY_H

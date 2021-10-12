@@ -8,6 +8,9 @@
 #include <tvterm/debug.h>
 #include <unordered_map>
 
+namespace tvterm
+{
+
 const VTermScreenCallbacks VTermAdapter::callbacks =
 {
     _static_wrap(&VTermAdapter::damage),
@@ -510,3 +513,5 @@ bool VTermAdapter::LineStack::pop( const VTermAdapter &vterm,
     }
     return false;
 }
+
+} // namespace tvterm

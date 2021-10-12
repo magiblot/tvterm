@@ -19,6 +19,9 @@
 #   include <util.h>
 #endif
 
+namespace tvterm
+{
+
 static struct termios createTermios() noexcept;
 static struct winsize createWinsize(TPoint size) noexcept;
 
@@ -163,3 +166,5 @@ struct termios createTermios() noexcept
 
     return t;
 }
+
+} // namespace tvterm

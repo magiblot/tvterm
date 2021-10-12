@@ -8,6 +8,9 @@
 
 #include <vterm.h>
 
+namespace tvterm
+{
+
 class VTermAdapter final : public TerminalAdapter
 {
     struct LineStack
@@ -64,5 +67,6 @@ inline TSpan<const VTermScreenCell> VTermAdapter::LineStack::top() const
     return {pair.first.get(), pair.second};
 }
 
+} // namespace tvterm
 
 #endif // TVTERM_VTERMADAPT_H

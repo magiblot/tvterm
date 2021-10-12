@@ -4,6 +4,9 @@
 #define Uses_TFrame
 #include <tvision/tv.h>
 
+namespace tvterm
+{
+
 class TerminalActivity;
 
 class TerminalFrame : public TFrame
@@ -26,5 +29,7 @@ inline void TerminalFrame::setTerm(TerminalActivity *aTerm)
 {
     term = aTerm;
 }
+
+} // namespace tvterm
 
 #endif // TVTERM_TERMFRAME_H

@@ -19,13 +19,15 @@ TCommandSet TerminalWindow::focusedCmds = []()
 
 TFrame *TerminalWindow::initFrame(TRect bounds)
 {
+    using namespace tvterm;
     return new TerminalFrame(bounds);
 }
 
-TerminalWindow::TerminalWindow(const TRect &bounds, TerminalActivity &aTerm) :
+TerminalWindow::TerminalWindow(const TRect &bounds, tvterm::TerminalActivity &aTerm) :
     TWindowInit(&TerminalWindow::initFrame),
     TWindow(bounds, nullptr, wnNoNumber)
 {
+    using namespace tvterm;
     options |= ofTileable;
     eventMask |= evBroadcast;
     setState(sfShadow, False);
@@ -36,6 +38,7 @@ TerminalWindow::TerminalWindow(const TRect &bounds, TerminalActivity &aTerm) :
 
 void TerminalWindow::shutDown()
 {
+    using namespace tvterm;
     if (frame)
         ((TerminalFrame *) frame)->setTerm(nullptr);
     view = nullptr;
@@ -63,7 +66,8 @@ void TerminalWindow::checkChanges() noexcept
     }
 }
 
-bool TerminalWindow::updateTitle(TerminalActivity &term, TerminalSharedState &state) noexcept
+bool TerminalWindow::updateTitle( tvterm::TerminalActivity &term,
+                                  tvterm::TerminalSharedState &state ) noexcept
 {
     if (state.titleChanged)
     {

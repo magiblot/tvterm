@@ -10,6 +10,9 @@
 #include <atomic>
 #include <memory>
 
+namespace tvterm
+{
+
 class TerminalActivity final : private AsyncStrandClient
 {
     friend std::default_delete<TerminalActivity>;
@@ -89,5 +92,7 @@ inline auto TerminalActivity::getState(Func &&func)
 {
     return terminal.getState(std::move(func));
 }
+
+} // namespace tvterm
 
 #endif // TVTERM_TERMACTIV_H

@@ -6,13 +6,16 @@
 #include <tvision/tv.h>
 #include <vector>
 
+namespace tvterm
+{
 class TerminalView;
 class TerminalActivity;
 struct TerminalSharedState;
+} // namespace tvterm
 
 class TerminalWindow : public TWindow
 {
-    TerminalView *view {nullptr};
+    tvterm::TerminalView *view {nullptr};
     size_t titleCapacity {0};
     std::vector<char> termTitle;
     TPoint lastTermSize {0, 0};
@@ -21,7 +24,7 @@ class TerminalWindow : public TWindow
 
     void checkChanges() noexcept;
     void resizeTitle(size_t);
-    bool updateTitle(TerminalActivity &, TerminalSharedState &state) noexcept;
+    bool updateTitle(tvterm::TerminalActivity &, tvterm::TerminalSharedState &state) noexcept;
     bool isClosed() const noexcept;
 
 public:
@@ -29,7 +32,7 @@ public:
     static TCommandSet focusedCmds;
 
     // Takes ownership over 'aTerm'.
-    TerminalWindow(const TRect &bounds, TerminalActivity &aTerm);
+    TerminalWindow(const TRect &bounds, tvterm::TerminalActivity &aTerm);
 
     void shutDown() override;
     const char *getTitle(short) override;

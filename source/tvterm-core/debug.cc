@@ -2,6 +2,8 @@
 
 #include <stdlib.h>
 
+namespace tvterm
+{
 namespace debug
 {
 
@@ -22,4 +24,6 @@ DebugCout::DebugCout() :
     const char *env = getenv("TVTERM_DEBUG");
     enabled = env && *env;
 }
+
+} // namespace tvterm
 

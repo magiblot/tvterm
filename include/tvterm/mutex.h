@@ -6,6 +6,9 @@
 #include <utility>
 #include <mutex>
 
+namespace tvterm
+{
+
 template <class T>
 class TMutex
 {
@@ -58,5 +61,7 @@ public:
     }
 
 };
+
+} // namespace tvterm
 
 #endif // TVTERM_MUTEX_H

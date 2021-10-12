@@ -14,7 +14,7 @@ struct TVTermApp : public TApplication
     static TVTermApp *app;
     static TCommandSet tileCmds;
 
-    IOContext io;
+    tvterm::IOContext io;
     bool checkTerms;
 
     TVTermApp();

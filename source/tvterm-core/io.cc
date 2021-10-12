@@ -3,6 +3,9 @@
 #include <thread>
 #include <chrono>
 
+namespace tvterm
+{
+
 IOContext::IOContext() :
     maxThreads(std::thread::hardware_concurrency()),
     work(io.get_executor())
@@ -29,3 +32,5 @@ void IOContext::run()
 {
     io.run();
 }
+
+} // namespace tvterm

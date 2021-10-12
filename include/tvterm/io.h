@@ -6,6 +6,9 @@
 #include <asio/io_context.hpp>
 #include <asio/executor_work_guard.hpp>
 
+namespace tvterm
+{
+
 class IOContext
 {
     std::vector<std::thread> threads;
@@ -27,5 +30,7 @@ public:
         return io;
     }
 };
+
+} // namespace tvterm
 
 #endif // TVTERM_IO_H

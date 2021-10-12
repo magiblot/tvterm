@@ -7,6 +7,9 @@
 
 struct MouseEventType;
 
+namespace tvterm
+{
+
 class TerminalActivity;
 class TerminalSurface;
 struct TerminalSharedState;
@@ -33,5 +36,7 @@ public:
     void handleEvent(TEvent &ev) override;
     void draw() override;
 };
+
+} // namespace tvterm
 
 #endif // TVTERM_TERMVIEW_H

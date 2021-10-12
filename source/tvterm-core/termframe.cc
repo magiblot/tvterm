@@ -4,6 +4,9 @@
 #define Uses_TRect
 #include <tvision/tv.h>
 
+namespace tvterm
+{
+
 TerminalFrame::TerminalFrame(const TRect &bounds) :
     TFrame(bounds),
     term(nullptr)
@@ -35,3 +38,5 @@ void TerminalFrame::drawSize()
         }
     }
 }
+
+} // namespace tvterm

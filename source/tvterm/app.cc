@@ -179,6 +179,7 @@ static void onTermError(const char *reason)
 
 void TVTermApp::newTerm()
 {
+    using namespace tvterm;
     io.makeRoom(getOpenTermCount() + 1);
     TRect r = deskTop->getExtent();
     TPoint size = TerminalWindow::viewSize(r);

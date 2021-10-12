@@ -3,6 +3,8 @@
 
 #include <iostream>
 
+namespace tvterm
+{
 namespace debug
 {
 
@@ -60,8 +62,13 @@ inline std::ostream& DebugCout::operator<<(const T &t)
     return operator std::ostream&() << t;
 }
 
+} // namespace tvterm
+
 #define Uses_TRect
 #include <tvision/tv.h>
+
+namespace tvterm
+{
 
 inline std::ostream &operator<<(std::ostream &os, const TRect &r)
 {
@@ -69,7 +76,12 @@ inline std::ostream &operator<<(std::ostream &os, const TRect &r)
                            << r.b.x << ", " << r.b.y << "}";
 }
 
+} // namespace tvterm
+
 #include <vterm.h>
+
+namespace tvterm
+{
 
 inline std::ostream &operator<<(std::ostream &os, const VTermPos &a)
 {
@@ -100,5 +112,7 @@ inline std::ostream &operator<<(std::ostream &os, const VTermProp &a)
     }
     return os << s;
 }
+
+} // namespace tvterm
 
 #endif // TVTERM_DEBUG_H

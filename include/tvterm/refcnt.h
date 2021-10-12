@@ -4,6 +4,9 @@
 #include <stddef.h>
 #include <atomic>
 
+namespace tvterm
+{
+
 struct AtomicOps
 {
     using counter_type = std::atomic<size_t>;
@@ -172,5 +175,7 @@ using TRc = BasicRefCounter<T, NormalOps>;
 
 template <class T>
 using TArc = BasicRefCounter<T, AtomicOps>;
+
+} // namespace tvterm
 
 #endif // TVTERM_REFCNT_H

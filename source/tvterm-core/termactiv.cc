@@ -3,6 +3,9 @@
 #define Uses_TEvent
 #include <tvision/tv.h>
 
+namespace tvterm
+{
+
 inline TerminalActivity::TerminalActivity( PtyDescriptor ptyDescriptor,
                                            TerminalAdapter &aTerminal,
                                            asio::io_context &io ) noexcept :
@@ -129,3 +132,5 @@ void TerminalActivity::sendMouse(ushort what, const MouseEventType &mouse) noexc
         async.writeOutput(terminal.takeWriteBuffer());
     });
 }
+
+} // namespace tvterm
