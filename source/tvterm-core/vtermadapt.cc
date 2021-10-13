@@ -23,8 +23,6 @@ const VTermScreenCallbacks VTermAdapter::callbacks =
     _static_wrap(&VTermAdapter::sb_popline),
 };
 
-thread_local TerminalSurface* VTermAdapter::lockedSurface {nullptr};
-
 namespace vtermadapt
 {
 
@@ -345,11 +343,7 @@ void VTermAdapter::receive(TSpan<const char> buf) noexcept
 
 void VTermAdapter::flushDamage() noexcept
 {
-    getState([&] (auto &state) {
-        lockedSurface = &state.surface;
-        vterm_screen_flush_damage(vts);
-        lockedSurface = nullptr;
-    });
+    vterm_screen_flush_damage(vts);
 }
 
 void VTermAdapter::handleKeyDown(const KeyDownEvent &keyDown) noexcept
@@ -398,10 +392,11 @@ void VTermAdapter::writeOutput(const char *data, size_t size)
 int VTermAdapter::damage(VTermRect rect)
 {
     using namespace vtermadapt;
-    if (lockedSurface)
+    getState([&] (auto &state) {
         drawArea( vts, getSize(),
                   {rect.start_col, rect.start_row, rect.end_col, rect.end_row},
-                  *lockedSurface );
+                  state.surface );
+    });
     return true;
 }
 

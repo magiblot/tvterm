@@ -32,7 +32,6 @@ class VTermAdapter final : public TerminalAdapter
     bool altScreenEnabled {false};
 
     static const VTermScreenCallbacks callbacks;
-    static thread_local TerminalSurface* lockedSurface;
 
     void writeOutput(const char *data, size_t size);
     int damage(VTermRect rect);
