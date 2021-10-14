@@ -13,6 +13,8 @@
 namespace tvterm
 {
 
+class ThreadPool;
+
 class TerminalActivity final : private AsyncStrandClient
 {
     friend std::default_delete<TerminalActivity>;
@@ -45,7 +47,7 @@ class TerminalActivity final : private AsyncStrandClient
 
     TerminalActivity( TPoint size,
                       TerminalAdapter &(&)(TPoint, TerminalSharedState &),
-                      PtyDescriptor, asio::io_context & ) noexcept;
+                      PtyDescriptor, ThreadPool & ) noexcept;
     ~TerminalActivity();
 
     void onWaitFinish(int, bool) noexcept override;
@@ -55,12 +57,12 @@ class TerminalActivity final : private AsyncStrandClient
 public:
 
     // 'createTerminal' must return a heap-allocated TerminalAdapter.
-    // The lifetime of 'io' must not exceed that of the returned object.
+    // The lifetime of 'threadPool' must exceed that of the returned object.
     static TerminalActivity *create( TPoint size,
                                      TerminalAdapter &(&createTerminal)(TPoint, TerminalSharedState &),
                                      void (&childActions)(),
                                      void (&onError)(const char *reason),
-                                     asio::io_context &io ) noexcept;
+                                     ThreadPool &threadPool ) noexcept;
     // Takes ownership over 'this'.
     void destroy() noexcept;
 

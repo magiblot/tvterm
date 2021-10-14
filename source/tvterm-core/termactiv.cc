@@ -1,4 +1,5 @@
 #include <tvterm/termactiv.h>
+#include <tvterm/threadpool.h>
 
 #define Uses_TEvent
 #include <tvision/tv.h>
@@ -9,12 +10,15 @@ namespace tvterm
 inline TerminalActivity::TerminalActivity( TPoint size,
                                            TerminalAdapter &(&createTerminal)(TPoint, TerminalSharedState &),
                                            PtyDescriptor ptyDescriptor,
-                                           asio::io_context &io ) noexcept :
+                                           ThreadPool &threadPool ) noexcept :
     pty(ptyDescriptor),
-    async(io, pty.getMaster()),
+    async(*this, pty.getMaster()),
     terminal(createTerminal(size, mSharedState.get()))
 {
-    async.setClient(this);
+    threadPool.run([&, g = std::unique_ptr<TerminalActivity>(this)] () noexcept {
+        async.run();
+    });
+
     async.waitInput();
 }
 
@@ -22,11 +26,11 @@ TerminalActivity *TerminalActivity::create( TPoint size,
                                             TerminalAdapter &(&createTerminal)(TPoint, TerminalSharedState &),
                                             void (&childActions)(),
                                             void (&onError)(const char *),
-                                            asio::io_context &io ) noexcept
+                                            ThreadPool &threadPool ) noexcept
 {
     auto ptyDescriptor = createPty(size, childActions, onError);
     if (ptyDescriptor.valid())
-        return new TerminalActivity(size, createTerminal, ptyDescriptor, io);
+        return new TerminalActivity(size, createTerminal, ptyDescriptor, threadPool);
     return nullptr;
 }
 
@@ -37,7 +41,7 @@ inline TerminalActivity::~TerminalActivity()
 
 void TerminalActivity::destroy() noexcept
 {
-    async.dispatch([s = std::unique_ptr<TerminalActivity>(this)] () noexcept {});
+    async.stop();
 }
 
 void TerminalActivity::onWaitFinish(int error, bool isTimeout) noexcept

@@ -5,6 +5,25 @@
 namespace tvterm
 {
 
+AsyncStrand::AsyncStrand(AsyncStrandClient &aClient, int fd) noexcept :
+    client(aClient),
+    work(io.get_executor()),
+    descriptor(io, fd),
+    inputWaitTimer(io)
+{
+}
+
+void AsyncStrand::run() noexcept
+{
+    io.run();
+}
+
+void AsyncStrand::stop() noexcept
+{
+    work.reset();
+    io.stop();
+}
+
 void AsyncStrand::waitInput() noexcept
 {
     if (!waitingForInput)
@@ -12,15 +31,11 @@ void AsyncStrand::waitInput() noexcept
         waitingForInput = true;
         descriptor.async_wait(
             asio::posix::stream_descriptor::wait_read,
-            asio::bind_executor(strand, [this, alive = alive] (auto &error) noexcept {
-                if (*alive)
-                {
-                    waitingForInput = false;
-                    inputWaitTimer.cancel();
-                    if (client)
-                        client->onWaitFinish(error.value(), false);
-                }
-            })
+            [this] (auto &error) noexcept {
+                waitingForInput = false;
+                inputWaitTimer.cancel();
+                client.onWaitFinish(error.value(), false);
+            }
         );
     }
 }
@@ -30,10 +45,10 @@ void AsyncStrand::waitInputUntil(time_point timeout) noexcept
     waitInput();
     inputWaitTimer.expires_at(timeout);
     inputWaitTimer.async_wait(
-        asio::bind_executor(strand, [this, alive = alive] (auto &error) noexcept {
-            if (*alive && error != asio::error::operation_aborted && client)
-                client->onWaitFinish(error.value(), true);
-        })
+        [this] (auto &error) noexcept {
+            if (error != asio::error::operation_aborted)
+                client.onWaitFinish(error.value(), true);
+        }
     );
 }
 

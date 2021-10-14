@@ -5,7 +5,7 @@
 #define Uses_TCommandSet
 #include <tvision/tv.h>
 
-#include <tvterm/io.h>
+#include <tvterm/threadpool.h>
 
 class TVTermDesk;
 
@@ -14,8 +14,7 @@ struct TVTermApp : public TApplication
     static TVTermApp *app;
     static TCommandSet tileCmds;
 
-    tvterm::IOContext io;
-    bool checkTerms;
+    tvterm::ThreadPool threadPool;
 
     TVTermApp();
     static TMenuBar* initMenuBar(TRect r);

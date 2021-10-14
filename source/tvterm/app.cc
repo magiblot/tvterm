@@ -46,8 +46,7 @@ TVTermApp::TVTermApp() :
     TProgInit( &TVTermApp::initStatusLine,
                &TVTermApp::initMenuBar,
                &TVTermApp::initDeskTop
-             ),
-    checkTerms(false)
+             )
 {
     disableCommands(tileCmds);
     for (ushort cmd : TerminalWindow::appConsts.focusedCmds())
@@ -181,12 +180,11 @@ static void onTermError(const char *reason)
 void TVTermApp::newTerm()
 {
     using namespace tvterm;
-    io.makeRoom(getOpenTermCount() + 1);
     TRect r = deskTop->getExtent();
     auto *term = TerminalActivity::create( TerminalWindow::viewSize(r),
                                            VTermAdapter::create,
                                            VTermAdapter::childActions,
-                                           onTermError, io.getContext() );
+                                           onTermError, threadPool );
     if (term)
         insertWindow(new TerminalWindow(r, *term));
 }
