@@ -2,7 +2,6 @@
 #define TVTERM_TERMADAPT_H
 
 #include <tvterm/array.h>
-#include <tvterm/mutex.h>
 #include <vector>
 
 #define Uses_TDrawSurface

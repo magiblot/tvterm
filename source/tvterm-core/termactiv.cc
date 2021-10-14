@@ -13,7 +13,7 @@ inline TerminalActivity::TerminalActivity( TPoint size,
                                            ThreadPool &threadPool ) noexcept :
     pty(ptyDescriptor),
     async(*this, pty.getMaster()),
-    terminal(createTerminal(size, mSharedState.get()))
+    terminal(createTerminal(size, sharedState))
 {
     threadPool.run([&, g = std::unique_ptr<TerminalActivity>(this)] () noexcept {
         async.run();
@@ -76,7 +76,7 @@ void TerminalActivity::advanceWaitState(int error, bool isTimeout) noexcept
                 {
                     static thread_local char buf alignas(4096) [bufSize];
                     size_t bytes = async.readInput(buf);
-                    mSharedState.lock([&] (auto &state) {
+                    getState([&] (auto &state) {
                         terminal.receive({buf, bytes}, state);
                     });
                 }
@@ -88,7 +88,7 @@ void TerminalActivity::advanceWaitState(int error, bool isTimeout) noexcept
             break;
         }
         case wsFlush:
-            mSharedState.lock([&] (auto &state) {
+            getState([&] (auto &state) {
                 terminal.flushDamage(state);
             });
             checkSize();
@@ -110,7 +110,7 @@ void TerminalActivity::checkSize() noexcept
     if (waitState != wsRead && viewSizeChanged)
     {
         viewSizeChanged = false;
-        mSharedState.lock([&] (auto &state) {
+        getState([&] (auto &state) {
             terminal.setSize(viewSize, state);
         });
         if (isClosed())

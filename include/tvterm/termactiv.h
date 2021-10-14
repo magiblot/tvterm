@@ -9,6 +9,7 @@
 #include <tvterm/pty.h>
 #include <atomic>
 #include <memory>
+#include <mutex>
 
 namespace tvterm
 {
@@ -41,7 +42,8 @@ class TerminalActivity final : private AsyncIOClient
     TPoint viewSize;
 
     std::atomic<bool> updated {false};
-    TMutex<TerminalSharedState> mSharedState;
+    TerminalSharedState sharedState;
+    std::mutex mSharedState;
 
     TerminalAdapter &terminal;
 
@@ -99,7 +101,8 @@ inline TPoint TerminalActivity::getSize() const noexcept
 template <class Func>
 inline auto TerminalActivity::getState(Func &&func)
 {
-    return mSharedState.lock(std::move(func));
+    std::lock_guard<std::mutex> lk {mSharedState};
+    return func(sharedState);
 }
 
 } // namespace tvterm
