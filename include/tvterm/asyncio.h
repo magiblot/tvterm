@@ -1,5 +1,5 @@
-#ifndef TVTERM_ASYNCSTRAND_H
-#define TVTERM_ASYNCSTRAND_H
+#ifndef TVTERM_ASYNCIO_H
+#define TVTERM_ASYNCIO_H
 
 #include <chrono>
 #include <asio/write.hpp>
@@ -16,7 +16,7 @@ class TSpan;
 namespace tvterm
 {
 
-class AsyncStrandClient
+class AsyncIOClient
 {
 public:
 
@@ -24,7 +24,7 @@ public:
 
 };
 
-class AsyncStrand
+class AsyncIO
 {
 public:
 
@@ -34,7 +34,7 @@ public:
 private:
 
     bool waitingForInput {false};
-    AsyncStrandClient &client;
+    AsyncIOClient &client;
 
     asio::io_context io;
     asio::executor_work_guard<decltype(io.get_executor())> work;
@@ -44,7 +44,7 @@ private:
 public:
 
     // The lifetime of 'aClient' must exceed that of 'this'.
-    AsyncStrand(AsyncStrandClient &aClient, int fd) noexcept;
+    AsyncIO(AsyncIOClient &aClient, int fd) noexcept;
 
     void run() noexcept;
     void stop() noexcept;
@@ -62,7 +62,7 @@ public:
 };
 
 template <class Buffer>
-inline void AsyncStrand::writeOutput(Buffer &&buf) noexcept
+inline void AsyncIO::writeOutput(Buffer &&buf) noexcept
 {
     if (buf.size())
         asio::async_write(
@@ -73,11 +73,11 @@ inline void AsyncStrand::writeOutput(Buffer &&buf) noexcept
 }
 
 template <class Func>
-inline void AsyncStrand::dispatch(Func &&func) noexcept
+inline void AsyncIO::dispatch(Func &&func) noexcept
 {
     asio::dispatch(io, std::move(func));
 }
 
 } // namespace tvterm
 
-#endif // TVTERM_ASYNCSTRAND_H
+#endif // TVTERM_ASYNCIO_H

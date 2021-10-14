@@ -1,11 +1,11 @@
-#include <tvterm/asyncstrand.h>
+#include <tvterm/asyncio.h>
 
 #include <tvision/tv.h>
 
 namespace tvterm
 {
 
-AsyncStrand::AsyncStrand(AsyncStrandClient &aClient, int fd) noexcept :
+AsyncIO::AsyncIO(AsyncIOClient &aClient, int fd) noexcept :
     client(aClient),
     work(io.get_executor()),
     descriptor(io, fd),
@@ -13,18 +13,18 @@ AsyncStrand::AsyncStrand(AsyncStrandClient &aClient, int fd) noexcept :
 {
 }
 
-void AsyncStrand::run() noexcept
+void AsyncIO::run() noexcept
 {
     io.run();
 }
 
-void AsyncStrand::stop() noexcept
+void AsyncIO::stop() noexcept
 {
     work.reset();
     io.stop();
 }
 
-void AsyncStrand::waitInput() noexcept
+void AsyncIO::waitInput() noexcept
 {
     if (!waitingForInput)
     {
@@ -40,7 +40,7 @@ void AsyncStrand::waitInput() noexcept
     }
 }
 
-void AsyncStrand::waitInputUntil(time_point timeout) noexcept
+void AsyncIO::waitInputUntil(time_point timeout) noexcept
 {
     waitInput();
     inputWaitTimer.expires_at(timeout);
@@ -52,7 +52,7 @@ void AsyncStrand::waitInputUntil(time_point timeout) noexcept
     );
 }
 
-bool AsyncStrand::canReadInput() noexcept
+bool AsyncIO::canReadInput() noexcept
 {
     decltype(descriptor)::bytes_readable cmd;
     asio::error_code err;
@@ -60,7 +60,7 @@ bool AsyncStrand::canReadInput() noexcept
     return !err && cmd.get() > 0;
 }
 
-size_t AsyncStrand::readInput(TSpan<char> buf) noexcept
+size_t AsyncIO::readInput(TSpan<char> buf) noexcept
 {
     asio::error_code ec;
     return descriptor.read_some(asio::buffer(buf.data(), buf.size()), ec);

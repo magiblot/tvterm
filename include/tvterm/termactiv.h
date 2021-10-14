@@ -4,7 +4,7 @@
 #define Uses_TPoint
 #include <tvision/tv.h>
 
-#include <tvterm/asyncstrand.h>
+#include <tvterm/asyncio.h>
 #include <tvterm/termadapt.h>
 #include <tvterm/pty.h>
 #include <atomic>
@@ -15,12 +15,12 @@ namespace tvterm
 
 class ThreadPool;
 
-class TerminalActivity final : private AsyncStrandClient
+class TerminalActivity final : private AsyncIOClient
 {
     friend std::default_delete<TerminalActivity>;
 
-    using clock = AsyncStrand::clock;
-    using time_point = AsyncStrand::time_point;
+    using clock = AsyncIO::clock;
+    using time_point = AsyncIO::time_point;
 
     enum { bufSize = 4096 };
     enum { maxConsecutiveEOF = 5 };
@@ -29,7 +29,7 @@ class TerminalActivity final : private AsyncStrandClient
     static constexpr auto inputWaitStep = std::chrono::milliseconds(5);
 
     PtyProcess pty;
-    AsyncStrand async;
+    AsyncIO async;
 
     WaitState waitState {wsRead};
     // case wsReady:
