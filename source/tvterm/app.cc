@@ -183,9 +183,10 @@ void TVTermApp::newTerm()
     using namespace tvterm;
     io.makeRoom(getOpenTermCount() + 1);
     TRect r = deskTop->getExtent();
-    TPoint size = TerminalWindow::viewSize(r);
-    auto &terminal = *new VTermAdapter(size);
-    auto *term = TerminalActivity::create(size, terminal, io.getContext(), onTermError);
+    auto *term = TerminalActivity::create( TerminalWindow::viewSize(r),
+                                           VTermAdapter::create,
+                                           VTermAdapter::childActions,
+                                           onTermError, io.getContext() );
     if (term)
         insertWindow(new TerminalWindow(r, *term));
 }

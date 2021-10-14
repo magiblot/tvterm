@@ -6,25 +6,27 @@
 namespace tvterm
 {
 
-inline TerminalActivity::TerminalActivity( PtyDescriptor ptyDescriptor,
-                                           TerminalAdapter &aTerminal,
+inline TerminalActivity::TerminalActivity( TPoint size,
+                                           TerminalAdapter &(&createTerminal)(TPoint, TerminalSharedState &),
+                                           PtyDescriptor ptyDescriptor,
                                            asio::io_context &io ) noexcept :
     pty(ptyDescriptor),
-    terminal(aTerminal),
-    async(io, pty.getMaster())
+    async(io, pty.getMaster()),
+    terminal(createTerminal(size, mSharedState.get()))
 {
     async.setClient(this);
     async.waitInput();
 }
 
-TerminalActivity *TerminalActivity::create( TPoint size, TerminalAdapter &terminal,
-                                            asio::io_context &io,
-                                            void (&onError)(const char *) ) noexcept
+TerminalActivity *TerminalActivity::create( TPoint size,
+                                            TerminalAdapter &(&createTerminal)(TPoint, TerminalSharedState &),
+                                            void (&childActions)(),
+                                            void (&onError)(const char *),
+                                            asio::io_context &io ) noexcept
 {
-    auto ptyDescriptor = createPty(size, terminal.getChildActions(), onError);
+    auto ptyDescriptor = createPty(size, childActions, onError);
     if (ptyDescriptor.valid())
-        return new TerminalActivity(ptyDescriptor, terminal, io);
-    delete &terminal;
+        return new TerminalActivity(size, createTerminal, ptyDescriptor, io);
     return nullptr;
 }
 
@@ -70,7 +72,9 @@ void TerminalActivity::advanceWaitState(int error, bool isTimeout) noexcept
                 {
                     static thread_local char buf alignas(4096) [bufSize];
                     size_t bytes = async.readInput(buf);
-                    terminal.receive({buf, bytes});
+                    mSharedState.lock([&] (auto &state) {
+                        terminal.receive({buf, bytes}, state);
+                    });
                 }
                 else
                     return async.waitInputUntil(::min(readTimeout, now + inputWaitStep));
@@ -80,7 +84,9 @@ void TerminalActivity::advanceWaitState(int error, bool isTimeout) noexcept
             break;
         }
         case wsFlush:
-            terminal.flushDamage();
+            mSharedState.lock([&] (auto &state) {
+                terminal.flushDamage(state);
+            });
             checkSize();
             updated = true;
             TEvent::putNothing();
@@ -100,7 +106,9 @@ void TerminalActivity::checkSize() noexcept
     if (waitState != wsRead && viewSizeChanged)
     {
         viewSizeChanged = false;
-        terminal.setSize(viewSize);
+        mSharedState.lock([&] (auto &state) {
+            terminal.setSize(viewSize, state);
+        });
         if (isClosed())
             updated = true;
         else

@@ -26,6 +26,7 @@ class VTermAdapter final : public TerminalAdapter
     struct VTerm *vt;
     struct VTermState *state;
     struct VTermScreen *vts;
+    TerminalSharedState *sharedState;
     ByteArray strFragBuf;
     LineStack linestack;
     bool mouseEnabled {false};
@@ -46,20 +47,26 @@ class VTermAdapter final : public TerminalAdapter
     VTermScreenCell getDefaultCell() const;
     TPoint getSize() noexcept;
 
-    void (&getChildActions() noexcept)() override;
-    void receive(TSpan<const char> buf) noexcept override;
-    void flushDamage() noexcept override;
-    void setSize(TPoint size) noexcept override;
+    void receive(TSpan<const char> buf, TerminalSharedState &aSharedState) noexcept override;
+    void flushDamage(TerminalSharedState &aSharedState) noexcept override;
+    void setSize(TPoint size, TerminalSharedState &aSharedState) noexcept override;
     void setFocus(bool focus) noexcept override;
     void handleKeyDown(const KeyDownEvent &keyDown) noexcept override;
     void handleMouse(ushort what, const MouseEventType &mouse) noexcept override;
 
 public:
 
-    VTermAdapter(TPoint size) noexcept;
+    VTermAdapter(TPoint size, TerminalSharedState &aSharedState) noexcept;
     ~VTermAdapter();
 
+    static TerminalAdapter &create(TPoint size, TerminalSharedState &aSharedState) noexcept;
+    static void childActions() noexcept;
 };
+
+inline TerminalAdapter &VTermAdapter::create(TPoint size, TerminalSharedState &aSharedState) noexcept
+{
+    return *new VTermAdapter(size, aSharedState);
+}
 
 inline TSpan<const VTermScreenCell> VTermAdapter::LineStack::top() const
 {

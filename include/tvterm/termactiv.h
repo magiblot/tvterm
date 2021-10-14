@@ -27,7 +27,6 @@ class TerminalActivity final : private AsyncStrandClient
     static constexpr auto inputWaitStep = std::chrono::milliseconds(5);
 
     PtyProcess pty;
-    TerminalAdapter &terminal;
     AsyncStrand async;
 
     WaitState waitState {wsRead};
@@ -40,8 +39,13 @@ class TerminalActivity final : private AsyncStrandClient
     TPoint viewSize;
 
     std::atomic<bool> updated {false};
+    TMutex<TerminalSharedState> mSharedState;
 
-    TerminalActivity(PtyDescriptor, TerminalAdapter &aTerminal, asio::io_context &io) noexcept;
+    TerminalAdapter &terminal;
+
+    TerminalActivity( TPoint size,
+                      TerminalAdapter &(&)(TPoint, TerminalSharedState &),
+                      PtyDescriptor, asio::io_context & ) noexcept;
     ~TerminalActivity();
 
     void onWaitFinish(int, bool) noexcept override;
@@ -50,11 +54,13 @@ class TerminalActivity final : private AsyncStrandClient
 
 public:
 
-    // Takes ownership over 'terminal'. The lifetime of 'io' must not exceed
-    // that of the result.
-    static TerminalActivity *create( TPoint size, TerminalAdapter &terminal,
-                                     asio::io_context &io,
-                                     void (&onError)(const char *reason) ) noexcept;
+    // 'createTerminal' must return a heap-allocated TerminalAdapter.
+    // The lifetime of 'io' must not exceed that of the returned object.
+    static TerminalActivity *create( TPoint size,
+                                     TerminalAdapter &(&createTerminal)(TPoint, TerminalSharedState &),
+                                     void (&childActions)(),
+                                     void (&onError)(const char *reason),
+                                     asio::io_context &io ) noexcept;
     // Takes ownership over 'this'.
     void destroy() noexcept;
 
@@ -68,7 +74,7 @@ public:
 
     template <class Func>
     // This method locks a mutex, so reentrance will lead to a deadlock.
-    // * 'func' takes a 'TerminalReceivedState &' by parameter.
+    // * 'func' takes a 'TerminalSharedState &' by parameter.
     auto getState(Func &&func);
 
 };
@@ -91,7 +97,7 @@ inline TPoint TerminalActivity::getSize() const noexcept
 template <class Func>
 inline auto TerminalActivity::getState(Func &&func)
 {
-    return terminal.getState(std::move(func));
+    return mSharedState.lock(std::move(func));
 }
 
 } // namespace tvterm

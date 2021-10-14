@@ -80,47 +80,28 @@ struct TerminalSharedState
 
 class TerminalAdapter
 {
-    TMutex<TerminalSharedState> mState;
-
 protected:
 
     ByteArray writeBuffer;
 
 public:
 
-    TerminalAdapter(TPoint size) noexcept;
+    TerminalAdapter() noexcept = default;
     virtual ~TerminalAdapter() {}
 
-    virtual void (&getChildActions() noexcept)() = 0;
-    virtual void setSize(TPoint size) noexcept = 0;
+    virtual void setSize(TPoint size, TerminalSharedState &sharedState) noexcept = 0;
     virtual void setFocus(bool focus) noexcept = 0;
     virtual void handleKeyDown(const KeyDownEvent &keyDown) noexcept = 0;
     virtual void handleMouse(ushort what, const MouseEventType &mouse) noexcept = 0;
-    virtual void receive(TSpan<const char> buf) noexcept = 0;
-    virtual void flushDamage() noexcept = 0;
+    virtual void receive(TSpan<const char> buf, TerminalSharedState &sharedState) noexcept = 0;
+    virtual void flushDamage(TerminalSharedState &sharedState) noexcept = 0;
 
     ByteArray takeWriteBuffer() noexcept;
-    template <class Func>
-    // This method locks a mutex, so reentrance will lead to a deadlock.
-    // * 'func' takes a 'TerminalSharedState &' by parameter.
-    auto getState(Func &&func);
-
 };
-
-inline TerminalAdapter::TerminalAdapter(TPoint size) noexcept
-{
-    mState.get().surface.resize(size);
-}
 
 inline ByteArray TerminalAdapter::takeWriteBuffer() noexcept
 {
     return std::move(writeBuffer);
-}
-
-template <class Func>
-inline auto TerminalAdapter::getState(Func &&func)
-{
-    return mState.lock(std::move(func));
 }
 
 } // namespace tvterm

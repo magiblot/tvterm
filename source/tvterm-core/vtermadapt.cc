@@ -301,9 +301,10 @@ namespace vtermadapt
 
 } // namespace vtermadapt
 
-VTermAdapter::VTermAdapter(TPoint size) noexcept :
-    TerminalAdapter(size)
+VTermAdapter::VTermAdapter(TPoint size, TerminalSharedState &aSharedState) noexcept
 {
+    sharedState = &aSharedState;
+
     vt = vterm_new(max(size.y, 1), max(size.x, 1));
     vterm_set_utf8(vt, 1);
 
@@ -321,6 +322,8 @@ VTermAdapter::VTermAdapter(TPoint size) noexcept :
     // VTerm's cursor blinks by default, but it shouldn't.
     VTermValue val {0};
     vterm_state_set_termprop(state, VTERM_PROP_CURSORBLINK, &val);
+
+    sharedState = nullptr;
 }
 
 VTermAdapter::~VTermAdapter()
@@ -328,22 +331,24 @@ VTermAdapter::~VTermAdapter()
     vterm_free(vt);
 }
 
-void (&VTermAdapter::getChildActions() noexcept)()
+void VTermAdapter::childActions() noexcept
 {
-    return *(void (*)()) [] {
-        setenv("TERM", "xterm-256color", 1);
-        setenv("COLORTERM", "truecolor", 1);
-    };
+    setenv("TERM", "xterm-256color", 1);
+    setenv("COLORTERM", "truecolor", 1);
 }
 
-void VTermAdapter::receive(TSpan<const char> buf) noexcept
+void VTermAdapter::receive(TSpan<const char> buf, TerminalSharedState &aSharedState) noexcept
 {
+    sharedState = &aSharedState;
     vterm_input_write(vt, buf.data(), buf.size());
+    sharedState = nullptr;
 }
 
-void VTermAdapter::flushDamage() noexcept
+void VTermAdapter::flushDamage(TerminalSharedState &aSharedState) noexcept
 {
+    sharedState = &aSharedState;
     vterm_screen_flush_damage(vts);
+    sharedState = nullptr;
 }
 
 void VTermAdapter::handleKeyDown(const KeyDownEvent &keyDown) noexcept
@@ -368,12 +373,14 @@ inline TPoint VTermAdapter::getSize() noexcept
     return size;
 }
 
-void VTermAdapter::setSize(TPoint size) noexcept
+void VTermAdapter::setSize(TPoint size, TerminalSharedState &aSharedState) noexcept
 {
+    sharedState = &aSharedState;
     size.x = max(size.x, 1);
     size.y = max(size.y, 1);
     if (size != getSize())
         vterm_set_size(vt, size.y, size.x);
+    sharedState = nullptr;
 }
 
 void VTermAdapter::setFocus(bool focus) noexcept
@@ -392,11 +399,9 @@ void VTermAdapter::writeOutput(const char *data, size_t size)
 int VTermAdapter::damage(VTermRect rect)
 {
     using namespace vtermadapt;
-    getState([&] (auto &state) {
-        drawArea( vts, getSize(),
-                  {rect.start_col, rect.start_row, rect.end_col, rect.end_row},
-                  state.surface );
-    });
+    drawArea( vts, getSize(),
+              {rect.start_col, rect.start_row, rect.end_col, rect.end_row},
+              sharedState->surface );
     return true;
 }
 
@@ -408,10 +413,8 @@ int VTermAdapter::moverect(VTermRect dest, VTermRect src)
 
 int VTermAdapter::movecursor(VTermPos pos, VTermPos oldpos, int visible)
 {
-    getState([&] (auto &state) {
-        state.cursorChanged = true;
-        state.cursorPos = {pos.col, pos.row};
-    });
+    sharedState->cursorChanged = true;
+    sharedState->cursorPos = {pos.col, pos.row};
     return true;
 }
 
@@ -430,22 +433,16 @@ int VTermAdapter::settermprop(VTermProp prop, VTermValue *val)
     switch (prop)
     {
         case VTERM_PROP_TITLE:
-            getState([&] (auto &state) {
-                state.titleChanged = true;
-                state.title = std::move(strFragBuf);
-            });
+            sharedState->titleChanged = true;
+            sharedState->title = std::move(strFragBuf);
             break;
         case VTERM_PROP_CURSORVISIBLE:
-            getState([&] (auto &state) {
-                state.cursorChanged = true;
-                state.cursorVisible = val->boolean;
-            });
+            sharedState->cursorChanged = true;
+            sharedState->cursorVisible = val->boolean;
             break;
         case VTERM_PROP_CURSORBLINK:
-            getState([&] (auto &state) {
-                state.cursorChanged = true;
-                state.cursorBlink = val->boolean;
-            });
+            sharedState->cursorChanged = true;
+            sharedState->cursorBlink = val->boolean;
             break;
         case VTERM_PROP_MOUSE:
             mouseEnabled = val->boolean;
