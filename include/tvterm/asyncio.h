@@ -64,11 +64,11 @@ public:
 template <class Buffer>
 inline void AsyncIO::writeOutput(Buffer &&buf) noexcept
 {
-    if (buf.size())
+    asio::mutable_buffer mb {buf.data(), buf.size()};
+    if (mb.size())
         asio::async_write(
-            descriptor,
-            asio::buffer(buf.data(), buf.size()),
-            [buf = std::move(buf)] (...) noexcept {}
+            descriptor, mb,
+            [buf = std::move(buf)] (auto, auto) noexcept {}
         );
 }
 
