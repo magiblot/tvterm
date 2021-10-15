@@ -67,9 +67,11 @@ endif()
 
 if (${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.16.0")
     if (TVTERM_OPTIMIZE_BUILD)
-        set_target_properties(tvterm PROPERTIES UNITY_BUILD ON)
-        target_precompile_headers(tvterm PRIVATE
-            "${CMAKE_CURRENT_LIST_DIR}/include/pch.h"
-        )
+        foreach (t tvterm tvterm-core)
+            set_target_properties(${t} PROPERTIES UNITY_BUILD ON)
+            target_precompile_headers(${t} PRIVATE
+                "${CMAKE_CURRENT_LIST_DIR}/include/pch.h"
+            )
+        endforeach()
     endif()
 endif()
