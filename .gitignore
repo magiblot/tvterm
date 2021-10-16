@@ -7,6 +7,7 @@
 !include/*/
 !source/
 !source/*/
+!COPYRIGHT
 *.bak
 *.dsw
 *.csm
