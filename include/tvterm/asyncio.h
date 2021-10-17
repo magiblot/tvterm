@@ -1,6 +1,12 @@
 #ifndef TVTERM_ASYNCIO_H
 #define TVTERM_ASYNCIO_H
 
+#include <asio/version.hpp>
+
+#if ASIO_VERSION < 101200
+#error Asio 1.12.0 or newer required.
+#endif
+
 #include <chrono>
 #include <asio/write.hpp>
 #include <asio/buffer.hpp>

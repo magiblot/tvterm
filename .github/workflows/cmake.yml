@@ -1,0 +1,31 @@
+name: Build
+
+on: [push, pull_request]
+
+env:
+  BUILD_TYPE: MinSizeRel
+
+jobs:
+  build-linux-gcc:
+    name: Linux (GCC 8)
+    runs-on: ubuntu-20.04
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'recursive'
+
+    - name: Install Dependencies
+      run: sudo apt -y install libncursesw5-dev g++-8 libvterm-dev libasio-dev
+
+    - name: Configure CMake
+      shell: bash
+      env:
+        CC: gcc-8
+        CXX: g++-8
+      run: cmake . -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DTVTERM_OPTIMIZE_BUILD=OFF
+
+    - name: Build
+      shell: bash
+      run: cmake --build . -j$(nproc)
+
+

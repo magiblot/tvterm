@@ -2,6 +2,8 @@
 !*.*
 .*
 !.git*
+!.github/
+!.github/*/
 !deps/
 !include/
 !include/*/
