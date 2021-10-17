@@ -49,8 +49,9 @@ target_link_libraries(tvterm-core PUBLIC
     vterm
     util
     pthread
+    asio
 )
-install(TARGETS vterm util pthread EXPORT tvterm-config)
+install(TARGETS vterm util pthread asio EXPORT tvterm-config)
 install(TARGETS tvterm-core
     EXPORT tvterm-config
     ARCHIVE DESTINATION lib

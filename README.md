@@ -1,4 +1,4 @@
-# `tvterm`
+# tvterm
 
 A terminal emulator that runs in your terminal. Powered by Turbo Vision.
 
@@ -16,10 +16,12 @@ The original location of this project is https://github.com/magiblot/tvterm.
 
 In order to build `tvterm` you must have the following things installed:
 
-* CMake 3.5 or newer.
+* CMake.
 * A compiler supporting C++14.
-* `libvterm` (preferably an up-to-date version such as [libvterm-bzr](https://aur.archlinux.org/packages/libvterm-bzr/) from the AUR).
-* Any dependencies required by [Turbo Vision](https://github.com/magiblot/tvision#build-environment):
+* `tvterm`'s dependencies:
+    * `libvterm` (preferably an up-to-date version such as [libvterm-bzr](https://aur.archlinux.org/packages/libvterm-bzr/) from the AUR).
+    * Asio.
+* [Turbo Vision](https://github.com/magiblot/tvision#build-environment)'s dependencies:
     * `libncursesw` (Unix only).
     * `libgpm` (optional, Linux only).
 * Turbo Vision itself. You may do this in two different ways:
@@ -50,8 +52,9 @@ This project is still WIP. Some features it may achieve at some point are:
 - [x] 24-bit color support.
 - [ ] Scrollback.
 - [ ] Text selection.
-- Typical `Edit` menu actions:
-    - [ ] Find text.
-    - [ ] Send signal.
+- [ ] Find text.
+- [ ] Send signal to child process.
 - [ ] Text reflow on resize.
 - [ ] Having other terminal emulator implementations to choose from.
+- [ ] Windows support.
+- [ ] Better dependency management.
