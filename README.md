@@ -18,7 +18,7 @@ In order to build `tvterm` you must have the following things installed:
 
 * CMake 3.5 or newer.
 * A compiler supporting C++14.
-* An up-to-date revision of `libvterm` (e.g. [libvterm-bzr](https://aur.archlinux.org/packages/libvterm-bzr/) in the AUR).
+* `libvterm` (preferably an up-to-date version such as [libvterm-bzr](https://aur.archlinux.org/packages/libvterm-bzr/) from the AUR).
 * Any dependencies required by [Turbo Vision](https://github.com/magiblot/tvision#build-environment):
     * `libncursesw` (Unix only).
     * `libgpm` (optional, Linux only).

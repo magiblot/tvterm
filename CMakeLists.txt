@@ -18,12 +18,25 @@ endfunction()
 
 include(deps/CMakeLists.txt)
 
+include(CheckCXXSourceCompiles)
+
+set(CMAKE_REQUIRED_INCLUDES ${vterm_INCLUDE})
+check_cxx_source_compiles("
+    #include <vterm.h>
+
+    int main() { VTermStringFragment str; }
+"   HAVE_VTERMSTRINGFRAGMENT)
+unset(CMAKE_REQUIRED_INCLUDES)
+
 # Target 'tvterm-core'
 
 file(GLOB_RECURSE TVTERM_CORE_SRC "${CMAKE_CURRENT_LIST_DIR}/source/tvterm-core/*.cc")
 add_library(tvterm-core ${TVTERM_CORE_SRC})
 
 tvterm_set_warnings(tvterm-core)
+if (HAVE_VTERMSTRINGFRAGMENT)
+    target_compile_definitions(tvterm-core PRIVATE HAVE_VTERMSTRINGFRAGMENT)
+endif()
 target_include_directories(tvterm-core PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>"
     "$<INSTALL_INTERFACE:include>"
