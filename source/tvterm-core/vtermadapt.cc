@@ -249,6 +249,18 @@ namespace vtermadapt
     static void convText( TSpan<TScreenCell> cells, int x,
                           const VTermScreenCell &vtCell )
     {
+        size_t length = 0;
+        while (vtCell.chars[length])
+            ++length;
+        TSpan<const uint32_t> text {vtCell.chars, max<size_t>(1, length)};
+        size_t ci = x, ti = 0;
+        while (TText::eat(cells, ci, text, ti))
+            ;
+    }
+
+    static void convCell( TSpan<TScreenCell> cells, int x,
+                          const VTermScreenCell &vtCell )
+    {
         if (vtCell.chars[0] == (uint32_t) -1) // Wide char trail.
         {
             // Turbo Vision and libvterm may disagree on what characters
@@ -264,13 +276,8 @@ namespace vtermadapt
         }
         else
         {
-            size_t length = 0;
-            while (vtCell.chars[length])
-                ++length;
-            TSpan<const uint32_t> text {vtCell.chars, max<size_t>(1, length)};
-            size_t ci = x, ti = 0;
-            while (TText::eat(cells, ci, text, ti))
-                ;
+            convAttr(cells[x].attr, vtCell);
+            convText(cells, x, vtCell);
         }
     }
 
@@ -288,10 +295,7 @@ namespace vtermadapt
                 {
                     VTermScreenCell cell;
                     if (vterm_screen_get_cell(vts, {y, x}, &cell))
-                    {
-                        convAttr(cells[x].attr, cell);
-                        convText(cells, x, cell);
-                    }
+                        convCell(cells, x, cell);
                     else
                         cells[x] = {};
                 }
