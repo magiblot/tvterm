@@ -208,8 +208,7 @@ namespace vtermadapt
         return {c.rgb.red, c.rgb.green, c.rgb.blue};
     }
 
-    static void convAttr( TColorAttr &dst,
-                          const VTermScreenCell &cell )
+    static TColorAttr convAttr(const VTermScreenCell &cell)
     {
         auto &vt_fg = cell.fg,
              &vt_bg = cell.bg;
@@ -243,19 +242,7 @@ namespace vtermadapt
             | (slReverse & -!!vt_attr.reverse)
             | (slStrike & -!!vt_attr.strike)
             ;
-        dst = {fg, bg, style};
-    }
-
-    static void convText( TSpan<TScreenCell> cells, int x,
-                          const VTermScreenCell &vtCell )
-    {
-        size_t length = 0;
-        while (vtCell.chars[length])
-            ++length;
-        TSpan<const uint32_t> text {vtCell.chars, max<size_t>(1, length)};
-        size_t ci = x, ti = 0;
-        while (TText::eat(cells, ci, text, ti))
-            ;
+        return {fg, bg, style};
     }
 
     static void convCell( TSpan<TScreenCell> cells, int x,
@@ -268,16 +255,19 @@ namespace vtermadapt
             // double-width but Turbo Vision does, it will manage to display it
             // properly anyway. But, in the opposite case, we need to place a
             // space after the double-width character.
-            if (x > 0 && !cells[x - 1].wide)
+            if (x > 0 && !cells[x - 1].isWide())
             {
                 ::setChar(cells[x], ' ');
-                ::setAttr(cells[x], cells[x - 1].attr);
+                ::setAttr(cells[x], ::getAttr(cells[x - 1]));
             }
         }
         else
         {
-            convAttr(cells[x].attr, vtCell);
-            convText(cells, x, vtCell);
+            size_t length = 0;
+            while (vtCell.chars[length])
+                ++length;
+            TSpan<const uint32_t> text {vtCell.chars, max<size_t>(1, length)};
+            TText::drawStr(cells, x, text, 0, convAttr(vtCell));
         }
     }
 
