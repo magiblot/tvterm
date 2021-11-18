@@ -64,11 +64,28 @@ inline std::ostream& DebugCout::operator<<(const T &t)
 
 } // namespace tvterm
 
+#include <tvterm/termadapt.h>
+
+namespace tvterm
+{
+
+inline std::ostream &operator<<(std::ostream &os, const TerminalSurface::Range &r)
+{
+    return os << "{" << r.begin << ", " << r.end << "}";
+}
+
+} // namespace tvterm
+
 #define Uses_TRect
 #include <tvision/tv.h>
 
 namespace tvterm
 {
+
+inline std::ostream &operator<<(std::ostream &os, TPoint p)
+{
+    return os << "{" << p.x << ", " << p.y << "}";
+}
 
 inline std::ostream &operator<<(std::ostream &os, const TRect &r)
 {

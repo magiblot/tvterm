@@ -29,6 +29,7 @@ public:
     void clearDamage();
     using TDrawSurface::at;
     Range &damageAt(size_t y);
+    const Range &damageAt(size_t y) const;
     void setDamage(size_t y, int begin, int end);
 
 private:
@@ -53,6 +54,11 @@ inline void TerminalSurface::clearDamage()
 }
 
 inline TerminalSurface::Range &TerminalSurface::damageAt(size_t y)
+{
+    return rowDamage[y];
+}
+
+inline const TerminalSurface::Range &TerminalSurface::damageAt(size_t y) const
 {
     return rowDamage[y];
 }

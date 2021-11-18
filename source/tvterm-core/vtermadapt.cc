@@ -271,12 +271,17 @@ namespace vtermadapt
         }
     }
 
-    static void drawArea( VTermScreen *vts, TPoint termSize, TRect termArea,
+    static void drawArea( VTermScreen *vts, TPoint termSize, TRect area,
                           TerminalSurface &surface )
     {
+        TRect r;
         if (surface.size != termSize)
+        {
             surface.resize(termSize);
-        TRect r = termArea.intersect({{0, 0}, termSize});
+            r = {{0, 0}, termSize};
+        }
+        else
+            r = area.intersect({{0, 0}, termSize});
         if (0 <= r.a.x && r.a.x < r.b.x && 0 <= r.a.y && r.a.y < r.b.y)
             for (int y = r.a.y; y < r.b.y; ++y)
             {

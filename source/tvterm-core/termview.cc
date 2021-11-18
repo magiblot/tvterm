@@ -90,7 +90,7 @@ void TerminalView::updateCursor(TerminalSharedState &state) noexcept
     }
 }
 
-static TerminalSurface::Range rangeToCopy(int y, const TRect &r, TerminalSurface &surface, bool reuseBuffer)
+static TerminalSurface::Range rangeToCopy(int y, const TRect &r, const TerminalSurface &surface, bool reuseBuffer)
 {
     auto &damage = surface.damageAt(y);
     if (reuseBuffer)
