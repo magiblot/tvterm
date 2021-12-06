@@ -26,8 +26,7 @@ class TerminalActivity final : private AsyncIOClient
     enum { bufSize = 4096 };
     enum { maxConsecutiveEOF = 5 };
     enum WaitState : uint8_t { wsReady, wsRead, wsFlush, wsEOF };
-    static constexpr auto maxReadTime = std::chrono::milliseconds(20);
-    static constexpr auto inputWaitStep = std::chrono::milliseconds(5);
+    enum { maxReadTimeMs = 20, inputWaitStepMs = 5 };
 
     PtyProcess pty;
     AsyncIO async;

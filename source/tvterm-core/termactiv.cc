@@ -51,13 +51,14 @@ void TerminalActivity::onWaitFinish(int error, bool isTimeout) noexcept
 
 void TerminalActivity::advanceWaitState(int error, bool isTimeout) noexcept
 {
+    using std::chrono::milliseconds;
     switch (waitState)
     {
         case wsReady:
             if (!error && async.canReadInput())
             {
                 consecutiveEOF = 0;
-                readTimeout = clock::now() + maxReadTime;
+                readTimeout = clock::now() + milliseconds(maxReadTimeMs);
                 waitState = wsRead;
             }
             else if (++consecutiveEOF < maxConsecutiveEOF)
@@ -81,7 +82,7 @@ void TerminalActivity::advanceWaitState(int error, bool isTimeout) noexcept
                     });
                 }
                 else
-                    return async.waitInputUntil(::min(readTimeout, now + inputWaitStep));
+                    return async.waitInputUntil(::min(readTimeout, now + milliseconds(inputWaitStepMs)));
             }
             else
                 waitState = wsFlush;
