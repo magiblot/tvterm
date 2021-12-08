@@ -2,9 +2,16 @@ name: Build
 
 on: [push, pull_request]
 
+env:
+  BUILD_TYPE: Debug
+  MUSL_LIB_PATH: /usr/lib/x86_64-linux-musl
+  GNU_LIB_PATH: /usr/lib/x86_64-linux-gnu
+  MUSL_CFLAGS: -isystem /usr/lib/llvm-10/include/c++/v1 -isystem /usr/lib/llvm-11/lib/clang/11.0.0/include -isystem /usr/include/x86_64-linux-musl -isystem /usr/include -D_LIBCPP_HAS_MUSL_LIBC
+  MUSL_LDFLAGS: -L /usr/lib/llvm-10/lib -L /usr/lib/llvm-11/lib/clang/11.0.0/lib -L /usr/lib/x86_64-linux-musl
+
 jobs:
   build-linux-clang:
-    name: Linux (Clang)
+    name: Linux (Clang 12, musl)
     runs-on: ubuntu-20.04
     steps:
     - uses: actions/checkout@v2
@@ -14,20 +21,37 @@ jobs:
     - name: Install Dependencies
       run: sudo apt -y install libncursesw5-dev libvterm-dev libasio-dev musl-dev
 
+    - name: Build libcxxabi
+      run: |
+        curl -LJO https://github.com/llvm/llvm-project/releases/download/llvmorg-10.0.1/libcxxabi-10.0.1.src.tar.xz
+        tar -xf libcxxabi-10.0.1.src.tar.xz
+        cd libcxxabi-10.0.1.src
+        cmake . -DCMAKE_BUILD_TYPE="$BUILD_TYPE" -DCMAKE_CXX_FLAGS="$MUSL_CFLAGS" -DLLVM_PATH=/usr/lib/llvm-10
+        cmake --build .
+
+    - name: Prepare musl sysroot
+      run: |
+        mkdir -p "$GITHUB_WORKSPACE/musl/lib"
+        ln -s "$MUSL_LIB_PATH"/* "$GITHUB_WORKSPACE/musl/lib"
+        ln -s "$GITHUB_WORKSPACE/lib/libc++abi.a "$GITHUB_WORKSPACE/musl/lib"
+
     - name: Configure CMake
       shell: bash
       env:
         CC: clang
         CXX: clang++
       run: |
-        mkdir -p "$GITHUB_WORKSPACE/musl"
-        ln -s /usr/lib/x86_64-linux-musl/libc.a "$GITHUB_WORKSPACE/musl/libpthread.a"
-        ln -s /usr/lib/x86_64-linux-musl/libutil.a "$GITHUB_WORKSPACE/musl/libutil.a"
-        cmake . -DCMAKE_BUILD_TYPE=Debug -DTVTERM_OPTIMIZE_BUILD=OFF -DCMAKE_LIBRARY_PATH="$GITHUB_WORKSPACE/musl" -DCMAKE_CXX_FLAGS="-std=c++14" -DCMAKE_EXE_LINKER_FLAGS="-static -Wl,--allow-multiple-definition /usr/lib/x86_64-linux-gnu/libc.a" -DCMAKE_PROJECT_INCLUDE="$GITHUB_WORKSPACE/deps/find-static-libs.cmake"
+        cmake . -DCMAKE_BUILD_TYPE=$BUILD_TYPE -DTVTERM_OPTIMIZE_BUILD=OFF -DCMAKE_LIBRARY_PATH="$MUSL_LIB_PATH;$GNU_LIB_PATH" -DCMAKE_CXX_FLAGS="-static -stdlib=libc++ " -DCMAKE_EXE_LINKER_FLAGS=" -static-libgcc --sysroot $GITHUB_WORKSPACE/musl $MUSL_LDFLAGS" -DCMAKE_PROJECT_INCLUDE="$GITHUB_WORKSPACE/deps/find-static-libs.cmake"
 
     - name: Build
       shell: bash
-      run: cmake --build . -j$(nproc)
+      run: cmake --build . -j$(nproc) -- VERBOSE=1
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: tvterm-linux-x86_64
+        path: tvterm
 
     - name: Upload Artifacts
       uses: actions/upload-artifact@v2
