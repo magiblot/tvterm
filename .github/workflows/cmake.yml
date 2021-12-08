@@ -4,7 +4,7 @@ on: [push, pull_request]
 
 jobs:
   build-linux-gcc:
-    name: Linux (GCC 8)
+    name: Linux (Clang 12, musl)
     runs-on: ubuntu-20.04
     steps:
     - uses: actions/checkout@v2
@@ -12,17 +12,30 @@ jobs:
         submodules: 'recursive'
 
     - name: Install Dependencies
-      run: sudo apt -y install libncursesw5-dev g++-8 libvterm-dev libasio-dev
+      run: sudo apt -y install libncursesw5-dev libvterm-dev libasio-dev musl-dev
+
+    - name: Print default include paths
+      run: |
+        clang++ -x c++ -stdlib=libc++ -E -Wp,-v /dev/null -o /dev/null
+        find /usr/lib/ -name '*c++.*' -type f || true
+        mkdir -p "$GITHUB_WORKSPACE/musl"
+        ln -s /usr/lib/x86_64-linux-musl "$GITHUB_WORKSPACE/musl/lib"
 
     - name: Configure CMake
       shell: bash
       env:
-        CC: gcc-8
-        CXX: g++-8
-      run: cmake . -DCMAKE_BUILD_TYPE=Debug -DTVTERM_OPTIMIZE_BUILD=OFF -DCMAKE_CXX_FLAGS="-std=c++14"
+        CC: clang
+        CXX: clang++
+      run: cmake . -DCMAKE_BUILD_TYPE=Debug -DTVTERM_OPTIMIZE_BUILD=OFF -DCMAKE_LIBRARY_PATH="/usr/lib/x86_64-linux-musl;/usr/lib/x86_64-linux-gnu" -DCMAKE_CXX_FLAGS="-static -stdlib=libc++ -isystem /usr/lib/llvm-10/include/c++/v1 -isystem /usr/lib/llvm-11/lib/clang/11.0.0/include -isystem /usr/include/x86_64-linux-musl -isystem /usr/include -D_LIBCPP_HAS_MUSL_LIBC" -DCMAKE_EXE_LINKER_FLAGS=" -static-libgcc -lc++abi --sysroot $GITHUB_WORKSPACE/musl -L /usr/lib/x86_64-linux-musl -L /usr/lib/llvm-10/lib -L /usr/lib/llvm-11/lib/clang/11.0.0/lib" -DCMAKE_PROJECT_INCLUDE="$GITHUB_WORKSPACE/deps/find-static-libs.cmake"
 
     - name: Build
       shell: bash
-      run: cmake --build . -j$(nproc)
+      run: cmake --build . -j$(nproc) -- VERBOSE=1
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: tvterm-linux-x86_64
+        path: tvterm
 
 

@@ -29,6 +29,7 @@ tvterm_find_library_and_header(vterm "vterm.h")
 tvterm_find_library(util)
 tvterm_find_library(pthread)
 tvterm_find_headeronly_library(asio "asio/version.hpp")
+tvterm_find_library(tinfo)
 
 if (TVTERM_USE_SYSTEM_TVISION)
     find_package(tvision CONFIG REQUIRED)

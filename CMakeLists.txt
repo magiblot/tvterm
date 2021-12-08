@@ -50,8 +50,9 @@ target_link_libraries(tvterm-core PUBLIC
     util
     pthread
     asio
+    tinfo # FIXME: this should be in tvision
 )
-install(TARGETS vterm util pthread asio EXPORT tvterm-config)
+install(TARGETS vterm util pthread asio tinfo EXPORT tvterm-config)
 install(TARGETS tvterm-core
     EXPORT tvterm-config
     ARCHIVE DESTINATION lib
