@@ -184,7 +184,7 @@ void TVTermApp::newTerm()
     auto *term = TerminalActivity::create( TerminalWindow::viewSize(r),
                                            VTermAdapter::create,
                                            VTermAdapter::childActions,
-                                           onTermError, threadPool );
+                                           onTermError, threadPool, ptyUtil );
     if (term)
         insertWindow(new TerminalWindow(r, *term));
 }

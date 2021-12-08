@@ -26,9 +26,10 @@ TerminalActivity *TerminalActivity::create( TPoint size,
                                             TerminalAdapter &(&createTerminal)(TPoint, TerminalSharedState &),
                                             void (&childActions)(),
                                             void (&onError)(const char *),
-                                            ThreadPool &threadPool ) noexcept
+                                            ThreadPool &threadPool,
+                                            const PtyUtil &ptyUtil ) noexcept
 {
-    auto ptyDescriptor = createPty(size, childActions, onError);
+    auto ptyDescriptor = createPty(size, childActions, onError, ptyUtil);
     if (ptyDescriptor.valid())
         return new TerminalActivity(size, createTerminal, ptyDescriptor, threadPool);
     return nullptr;

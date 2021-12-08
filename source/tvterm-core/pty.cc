@@ -10,28 +10,42 @@
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <termios.h>
-
-#if __has_include(<pty.h>)
-#   include <pty.h>
-#elif __has_include(<libutil.h>)
-#   include <libutil.h>
-#elif __has_include(<util.h>)
-#   include <util.h>
-#endif
+#include <stdlib.h>
+#include "dl.h"
 
 namespace tvterm
 {
+
+DynPtyUtil::DynPtyUtil() noexcept
+{
+    if (!(lib = DynLib::open("libutil")))
+    {
+        fprintf(stderr, "tvterm: cannot find shared library 'libutil'\n");
+        exit(1);
+    }
+    if (!(forkpty = (decltype(::forkpty) *) lib->getProc("forkpty")))
+    {
+        fprintf(stderr, "tvterm: %s\n", DynLib::getLastError());
+        exit(1);
+    }
+}
+
+DynPtyUtil::~DynPtyUtil()
+{
+    delete lib;
+}
 
 static struct termios createTermios() noexcept;
 static struct winsize createWinsize(TPoint size) noexcept;
 
 PtyDescriptor createPty( TPoint size, void (&doAsChild)(),
-                         void (&onError)(const char *) ) noexcept
+                         void (&onError)(const char *),
+                         const PtyUtil &ptyUtil ) noexcept
 {
     auto termios = createTermios();
     auto winsize = createWinsize(size);
     int master_fd;
-    pid_t child_pid = forkpty(&master_fd, nullptr, &termios, &winsize);
+    pid_t child_pid = ptyUtil.forkpty(&master_fd, nullptr, &termios, &winsize);
     if (child_pid == 0)
     {
         // Use the default ISIG signal handlers.
@@ -49,7 +63,7 @@ PtyDescriptor createPty( TPoint size, void (&doAsChild)(),
              << std::endl << std::flush;
         // Don't clean up resources, because we didn't initiate them
         // (e.g. terminal state).
-        _exit(1);
+        _Exit(1);
     }
     else if (child_pid == -1)
     {

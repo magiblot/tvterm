@@ -1,0 +1,5 @@
+if (WIN32)
+    set(CMAKE_FIND_LIBRARY_SUFFIXES ".lib")
+else()
+    set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+endif()

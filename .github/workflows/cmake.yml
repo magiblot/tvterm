@@ -4,7 +4,7 @@ on: [push, pull_request]
 
 jobs:
   build-linux-gcc:
-    name: Linux (GCC 8)
+    name: Linux (GCC 7)
     runs-on: ubuntu-20.04
     steps:
     - uses: actions/checkout@v2
@@ -12,17 +12,24 @@ jobs:
         submodules: 'recursive'
 
     - name: Install Dependencies
-      run: sudo apt -y install libncursesw5-dev g++-8 libvterm-dev libasio-dev
+      run: sudo apt -y install libncursesw5-dev g++-7 libvterm-dev libasio-dev
 
     - name: Configure CMake
       shell: bash
       env:
-        CC: gcc-8
-        CXX: g++-8
-      run: cmake . -DCMAKE_BUILD_TYPE=Debug -DTVTERM_OPTIMIZE_BUILD=OFF -DCMAKE_CXX_FLAGS="-std=c++14"
+        CC: gcc-7
+        CXX: g++-7
+      run: cmake . -DCMAKE_BUILD_TYPE=Debug -DTVTERM_OPTIMIZE_BUILD=OFF -DCMAKE_CXX_FLAGS="-std=c++14 -static" -DCMAKE_PROJECT_INCLUDE="$GITHUB_WORKSPACE/.github/workflows/find-static-libs.cmake"
 
     - name: Build
       shell: bash
       run: cmake --build . -j$(nproc)
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: tvterm-linux-x86_64
+        path: |
+          tvterm
 
 

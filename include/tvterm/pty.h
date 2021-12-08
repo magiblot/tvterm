@@ -3,12 +3,37 @@
 
 #include <sys/types.h>
 
+#if __has_include(<pty.h>)
+#   include <pty.h>
+#elif __has_include(<libutil.h>)
+#   include <libutil.h>
+#elif __has_include(<util.h>)
+#   include <util.h>
+#endif
+
 template <class T>
 class TSpan;
 class TPoint;
 
 namespace tvterm
 {
+
+struct PtyUtil
+{
+    decltype(::forkpty) *forkpty;
+};
+
+class DynLib;
+
+class DynPtyUtil : public PtyUtil
+{
+    DynLib *lib;
+
+public:
+
+    DynPtyUtil() noexcept;
+    ~DynPtyUtil();
+};
 
 struct PtyDescriptor
 {
@@ -22,7 +47,8 @@ struct PtyDescriptor
 };
 
 PtyDescriptor createPty( TPoint size, void (&doAsChild)(),
-                         void (&onError)(const char *reason) ) noexcept;
+                         void (&onError)(const char *reason),
+                         const PtyUtil &ptyUtil ) noexcept;
 
 class PtyProcess
 {

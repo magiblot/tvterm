@@ -26,8 +26,8 @@ function(tvterm_find_library_and_header name header)
 endfunction()
 
 tvterm_find_library_and_header(vterm "vterm.h")
-tvterm_find_library(util)
 tvterm_find_library(pthread)
+tvterm_find_library(dl)
 tvterm_find_headeronly_library(asio "asio/version.hpp")
 
 if (TVTERM_USE_SYSTEM_TVISION)

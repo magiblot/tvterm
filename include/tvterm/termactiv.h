@@ -63,7 +63,8 @@ public:
                                      TerminalAdapter &(&createTerminal)(TPoint, TerminalSharedState &),
                                      void (&childActions)(),
                                      void (&onError)(const char *reason),
-                                     ThreadPool &threadPool ) noexcept;
+                                     ThreadPool &threadPool,
+                                     const PtyUtil &ptyUtil ) noexcept;
     // Takes ownership over 'this'.
     void destroy() noexcept;
 

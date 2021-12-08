@@ -47,11 +47,11 @@ target_include_directories(tvterm-core PRIVATE
 target_link_libraries(tvterm-core PUBLIC
     tvision
     vterm
-    util
     pthread
+    dl
     asio
 )
-install(TARGETS vterm util pthread asio EXPORT tvterm-config)
+install(TARGETS vterm pthread dl asio EXPORT tvterm-config)
 install(TARGETS tvterm-core
     EXPORT tvterm-config
     ARCHIVE DESTINATION lib

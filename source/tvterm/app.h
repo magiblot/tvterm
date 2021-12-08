@@ -6,6 +6,7 @@
 #include <tvision/tv.h>
 
 #include <tvterm/threadpool.h>
+#include <tvterm/pty.h>
 
 class TVTermDesk;
 
@@ -15,6 +16,7 @@ struct TVTermApp : public TApplication
     static TCommandSet tileCmds;
 
     tvterm::ThreadPool threadPool;
+    tvterm::DynPtyUtil ptyUtil;
 
     TVTermApp();
     static TMenuBar* initMenuBar(TRect r);
