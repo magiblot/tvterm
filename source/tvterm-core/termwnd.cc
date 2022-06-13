@@ -46,7 +46,7 @@ void BasicTerminalWindow::checkChanges() noexcept
     if (view)
     {
         auto &term = view->term;
-        if (term.checkChanges())
+        if (term.hasChanged())
         {
             view->drawView();
             frameChanged |= term.getState([&] (auto &state) {

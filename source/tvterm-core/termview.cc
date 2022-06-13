@@ -28,7 +28,7 @@ void TerminalView::changeBounds(const TRect& bounds)
     setBounds(bounds);
     ownerBufferChanged = true;
     drawView();
-    term.changeSize(size);
+    term.sendResize(size);
 }
 
 void TerminalView::setState(ushort aState, bool enable)

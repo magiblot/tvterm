@@ -27,7 +27,7 @@ class VTermAdapter final : public TerminalAdapter
     struct VTermState *state;
     struct VTermScreen *vts;
     TerminalSharedState *sharedState;
-    ByteArray strFragBuf;
+    GrowArray strFragBuf;
     LineStack linestack;
     bool mouseEnabled {false};
     bool altScreenEnabled {false};

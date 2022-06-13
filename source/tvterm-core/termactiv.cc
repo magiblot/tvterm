@@ -121,7 +121,7 @@ void TerminalActivity::checkSize() noexcept
     }
 }
 
-void TerminalActivity::changeSize(TPoint aSize) noexcept
+void TerminalActivity::sendResize(TPoint aSize) noexcept
 {
     async.dispatch([this, aSize] {
         viewSizeChanged = true;

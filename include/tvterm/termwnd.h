@@ -32,7 +32,7 @@ class BasicTerminalWindow : public TWindow
     const BasicTerminalWindowAppConstants &appConsts;
     TerminalView *view {nullptr};
     size_t titleCapacity {0};
-    ByteArray termTitle;
+    GrowArray termTitle;
     TPoint lastTermSize {0, 0};
 
     void checkChanges() noexcept;

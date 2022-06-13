@@ -80,14 +80,14 @@ struct TerminalSharedState
     bool cursorVisible {false};
     bool cursorBlink {false};
     bool titleChanged {false};
-    ByteArray title;
+    GrowArray title;
 };
 
 class TerminalAdapter
 {
 protected:
 
-    ByteArray writeBuffer;
+    GrowArray writeBuffer;
 
 public:
 
@@ -101,10 +101,10 @@ public:
     virtual void receive(TSpan<const char> buf, TerminalSharedState &sharedState) noexcept = 0;
     virtual void flushDamage(TerminalSharedState &sharedState) noexcept = 0;
 
-    ByteArray takeWriteBuffer() noexcept;
+    GrowArray takeWriteBuffer() noexcept;
 };
 
-inline ByteArray TerminalAdapter::takeWriteBuffer() noexcept
+inline GrowArray TerminalAdapter::takeWriteBuffer() noexcept
 {
     return std::move(writeBuffer);
 }

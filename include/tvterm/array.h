@@ -9,7 +9,7 @@
 namespace tvterm
 {
 
-class ByteArray
+class GrowArray
 {
     struct
     {
@@ -22,11 +22,11 @@ class ByteArray
 
 public:
 
-    ByteArray() noexcept = default;
-    ByteArray(ByteArray &&other) noexcept;
-    ~ByteArray();
+    GrowArray() noexcept = default;
+    GrowArray(GrowArray &&other) noexcept;
+    ~GrowArray();
 
-    ByteArray &operator=(ByteArray other) noexcept;
+    GrowArray &operator=(GrowArray other) noexcept;
 
     char *data() noexcept;
     size_t size() noexcept;
@@ -34,18 +34,18 @@ public:
     void clear() noexcept;
 };
 
-inline ByteArray::ByteArray(ByteArray &&other) noexcept
+inline GrowArray::GrowArray(GrowArray &&other) noexcept
 {
     p = other.p;
     other.p = {};
 }
 
-inline ByteArray::~ByteArray()
+inline GrowArray::~GrowArray()
 {
     free(p.data);
 }
 
-inline ByteArray &ByteArray::operator=(ByteArray other) noexcept
+inline GrowArray &GrowArray::operator=(GrowArray other) noexcept
 {
     auto aux = p;
     p = other.p;
@@ -53,17 +53,17 @@ inline ByteArray &ByteArray::operator=(ByteArray other) noexcept
     return *this;
 }
 
-inline char *ByteArray::data() noexcept
+inline char *GrowArray::data() noexcept
 {
     return p.data;
 }
 
-inline size_t ByteArray::size() noexcept
+inline size_t GrowArray::size() noexcept
 {
     return p.size;
 }
 
-inline void ByteArray::push(const char *aData, size_t aSize) noexcept
+inline void GrowArray::push(const char *aData, size_t aSize) noexcept
 {
     size_t newSize = p.size + aSize;
     if (newSize > p.capacity)
@@ -72,12 +72,12 @@ inline void ByteArray::push(const char *aData, size_t aSize) noexcept
     p.size = newSize;
 }
 
-inline void ByteArray::clear() noexcept
+inline void GrowArray::clear() noexcept
 {
     p.size = 0;
 }
 
-inline void ByteArray::grow(size_t minCapacity) noexcept
+inline void GrowArray::grow(size_t minCapacity) noexcept
 {
     size_t newCapacity = max<size_t>(minCapacity, 2*p.capacity);
     if (!(p.data = (char *) realloc(p.data, newCapacity)))

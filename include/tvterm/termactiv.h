@@ -67,10 +67,10 @@ public:
     // Takes ownership over 'this'.
     void destroy() noexcept;
 
-    bool checkChanges() noexcept;
+    bool hasChanged() noexcept;
     bool isClosed() const noexcept;
     TPoint getSize() const noexcept;
-    void changeSize(TPoint aSize) noexcept;
+    void sendResize(TPoint aSize) noexcept;
     void sendFocus(bool focus) noexcept;
     void sendKeyDown(const KeyDownEvent &keyDown) noexcept;
     void sendMouse(ushort what, const MouseEventType &mouse) noexcept;
@@ -82,7 +82,7 @@ public:
 
 };
 
-inline bool TerminalActivity::checkChanges() noexcept
+inline bool TerminalActivity::hasChanged() noexcept
 {
     return updated.exchange(false) == true;
 }
