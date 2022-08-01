@@ -42,8 +42,7 @@ class TerminalActivity final : private AsyncIOClient
     TPoint viewSize;
 
     std::atomic<bool> updated {false};
-    TerminalSharedState sharedState;
-    std::mutex mSharedState;
+    Mutex<TerminalSharedState> sharedState;
 
     TerminalAdapter &terminal;
 
@@ -58,8 +57,7 @@ class TerminalActivity final : private AsyncIOClient
 
 public:
 
-    // 'createTerminal' must return a heap-allocated TerminalAdapter.
-    // The lifetime of 'threadPool' must exceed that of the returned object.
+    // The lifetime of 'threadPool' must exceed that of the returned TerminalActivity.
     static TerminalActivity *create( TPoint size,
                                      TerminalAdapterFactory &createTerminal,
                                      void (&childActions)(),
@@ -101,8 +99,7 @@ inline TPoint TerminalActivity::getSize() const noexcept
 template <class Func>
 inline auto TerminalActivity::getState(Func &&func)
 {
-    std::lock_guard<std::mutex> lk {mSharedState};
-    return func(sharedState);
+    return sharedState.lock(static_cast<Func &&>(func));
 }
 
 } // namespace tvterm

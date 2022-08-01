@@ -77,9 +77,7 @@ void TerminalActivity::advanceWaitState(int error, bool isTimeout) noexcept
                 {
                     static thread_local char buf alignas(4096) [bufSize];
                     size_t bytes = async.readInput(buf);
-                    getState([&] (auto &state) {
-                        terminal.receive({buf, bytes}, state);
-                    });
+                    terminal.receive({buf, bytes});
                 }
                 else
                     return async.waitInputUntil(::min(readTimeout, now + milliseconds(inputWaitStepMs)));
@@ -89,9 +87,7 @@ void TerminalActivity::advanceWaitState(int error, bool isTimeout) noexcept
             break;
         }
         case wsFlush:
-            getState([&] (auto &state) {
-                terminal.flushDamage(state);
-            });
+            terminal.flushDamage();
             checkSize();
             updated = true;
             TEvent::putNothing();
@@ -111,9 +107,7 @@ void TerminalActivity::checkSize() noexcept
     if (waitState != wsRead && viewSizeChanged)
     {
         viewSizeChanged = false;
-        getState([&] (auto &state) {
-            terminal.setSize(viewSize, state);
-        });
+        terminal.setSize(viewSize);
         if (isClosed())
             updated = true;
         else

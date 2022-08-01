@@ -2,6 +2,7 @@
 #define TVTERM_TERMADAPT_H
 
 #include <tvterm/array.h>
+#include <tvterm/mutex.h>
 #include <vector>
 
 #define Uses_TDrawSurface
@@ -86,19 +87,20 @@ struct TerminalSharedState
 class TerminalAdapter
 {
 public:
-
-    TerminalAdapter() noexcept = default;
     virtual ~TerminalAdapter() {}
 
-    virtual void setSize(TPoint size, TerminalSharedState &sharedState) noexcept = 0;
+    virtual void setSize(TPoint size) noexcept = 0;
     virtual void setFocus(bool focus) noexcept = 0;
     virtual void handleKeyDown(const KeyDownEvent &keyDown) noexcept = 0;
     virtual void handleMouse(ushort what, const MouseEventType &mouse) noexcept = 0;
-    virtual void receive(TSpan<const char> buf, TerminalSharedState &sharedState) noexcept = 0;
-    virtual void flushDamage(TerminalSharedState &sharedState) noexcept = 0;
+    virtual void receive(TSpan<const char> buf) noexcept = 0;
+    virtual void flushDamage() noexcept = 0;
 };
 
-using TerminalAdapterFactory = TerminalAdapter &(TPoint size, GrowArray &outputBuffer, TerminalSharedState &sharedState);
+// Function returning a new-allocated TerminalAdapter.
+// Both 'outputBuffer' and 'sharedState' are non-owning references and
+// they exceed the lifetime of the returned TerminalAdapter.
+using TerminalAdapterFactory = TerminalAdapter &(TPoint size, GrowArray &outputBuffer, Mutex<TerminalSharedState> &sharedState);
 
 } // namespace tvterm
 

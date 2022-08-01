@@ -23,18 +23,30 @@ class VTermAdapter final : public TerminalAdapter
         TSpan<const VTermScreenCell> top() const;
     };
 
+    struct LocalState
+    {
+        bool cursorChanged {false};
+        TPoint cursorPos {0, 0};
+        bool cursorVisible {false};
+        bool cursorBlink {false};
+        bool titleChanged {false};
+        GrowArray title;
+    };
+
     struct VTerm *vt;
     struct VTermState *state;
     struct VTermScreen *vts;
     GrowArray &outputBuffer;
-    TerminalSharedState *sharedState;
+    Mutex<TerminalSharedState> &sharedState;
     GrowArray strFragBuf;
     LineStack linestack;
+    LocalState localState;
     bool mouseEnabled {false};
     bool altScreenEnabled {false};
 
     static const VTermScreenCallbacks callbacks;
 
+    void updateState() noexcept;
     void writeOutput(const char *data, size_t size);
     int damage(VTermRect rect);
     int moverect(VTermRect dest, VTermRect src);
@@ -48,23 +60,23 @@ class VTermAdapter final : public TerminalAdapter
     VTermScreenCell getDefaultCell() const;
     TPoint getSize() noexcept;
 
-    void receive(TSpan<const char> buf, TerminalSharedState &aSharedState) noexcept override;
-    void flushDamage(TerminalSharedState &aSharedState) noexcept override;
-    void setSize(TPoint size, TerminalSharedState &aSharedState) noexcept override;
+    void receive(TSpan<const char> buf) noexcept override;
+    void flushDamage() noexcept override;
+    void setSize(TPoint size) noexcept override;
     void setFocus(bool focus) noexcept override;
     void handleKeyDown(const KeyDownEvent &keyDown) noexcept override;
     void handleMouse(ushort what, const MouseEventType &mouse) noexcept override;
 
 public:
 
-    VTermAdapter(TPoint size, GrowArray &aOutputBuffer, TerminalSharedState &aSharedState) noexcept;
+    VTermAdapter(TPoint size, GrowArray &aOutputBuffer, Mutex<TerminalSharedState> &aSharedState) noexcept;
     ~VTermAdapter();
 
-    static TerminalAdapter &create(TPoint size, GrowArray &aOutputBuffer, TerminalSharedState &aSharedState) noexcept;
+    static TerminalAdapter &create(TPoint size, GrowArray &aOutputBuffer, Mutex<TerminalSharedState> &aSharedState) noexcept;
     static void childActions() noexcept;
 };
 
-inline TerminalAdapter &VTermAdapter::create(TPoint size, GrowArray &aOutputBuffer, TerminalSharedState &aSharedState) noexcept
+inline TerminalAdapter &VTermAdapter::create(TPoint size, GrowArray &aOutputBuffer, Mutex<TerminalSharedState> &aSharedState) noexcept
 {
     return *new VTermAdapter(size, aOutputBuffer, aSharedState);
 }

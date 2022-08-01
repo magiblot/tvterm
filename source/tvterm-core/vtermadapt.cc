@@ -300,11 +300,10 @@ namespace vtermadapt
 
 } // namespace vtermadapt
 
-VTermAdapter::VTermAdapter(TPoint size, GrowArray &aOutputBuffer, TerminalSharedState &aSharedState) noexcept :
-    outputBuffer(aOutputBuffer)
+VTermAdapter::VTermAdapter(TPoint size, GrowArray &aOutputBuffer, Mutex<TerminalSharedState> &aSharedState) noexcept :
+    outputBuffer(aOutputBuffer),
+    sharedState(aSharedState)
 {
-    sharedState = &aSharedState;
-
     vt = vterm_new(max(size.y, 1), max(size.x, 1));
     vterm_set_utf8(vt, 1);
 
@@ -323,7 +322,7 @@ VTermAdapter::VTermAdapter(TPoint size, GrowArray &aOutputBuffer, TerminalShared
     VTermValue val {0};
     vterm_state_set_termprop(state, VTERM_PROP_CURSORBLINK, &val);
 
-    sharedState = nullptr;
+    updateState();
 }
 
 VTermAdapter::~VTermAdapter()
@@ -337,18 +336,36 @@ void VTermAdapter::childActions() noexcept
     setenv("COLORTERM", "truecolor", 1);
 }
 
-void VTermAdapter::receive(TSpan<const char> buf, TerminalSharedState &aSharedState) noexcept
+void VTermAdapter::updateState() noexcept
 {
-    sharedState = &aSharedState;
-    vterm_input_write(vt, buf.data(), buf.size());
-    sharedState = nullptr;
+    sharedState.lock([&] (auto &sharedState) {
+        if (localState.cursorChanged)
+        {
+            sharedState.cursorChanged = true;
+            sharedState.cursorPos = localState.cursorPos;
+            sharedState.cursorVisible = localState.cursorVisible;
+            sharedState.cursorBlink = localState.cursorBlink;
+            localState.cursorChanged = false;
+        }
+
+        if (localState.titleChanged)
+        {
+            sharedState.titleChanged = true;
+            sharedState.title = std::move(localState.title);
+            localState.titleChanged = false;
+        }
+    });
 }
 
-void VTermAdapter::flushDamage(TerminalSharedState &aSharedState) noexcept
+void VTermAdapter::receive(TSpan<const char> buf) noexcept
 {
-    sharedState = &aSharedState;
+    vterm_input_write(vt, buf.data(), buf.size());
+}
+
+void VTermAdapter::flushDamage() noexcept
+{
     vterm_screen_flush_damage(vts);
-    sharedState = nullptr;
+    updateState();
 }
 
 void VTermAdapter::handleKeyDown(const KeyDownEvent &keyDown) noexcept
@@ -373,14 +390,12 @@ inline TPoint VTermAdapter::getSize() noexcept
     return size;
 }
 
-void VTermAdapter::setSize(TPoint size, TerminalSharedState &aSharedState) noexcept
+void VTermAdapter::setSize(TPoint size) noexcept
 {
-    sharedState = &aSharedState;
     size.x = max(size.x, 1);
     size.y = max(size.y, 1);
     if (size != getSize())
         vterm_set_size(vt, size.y, size.x);
-    sharedState = nullptr;
 }
 
 void VTermAdapter::setFocus(bool focus) noexcept
@@ -399,9 +414,11 @@ void VTermAdapter::writeOutput(const char *data, size_t size)
 int VTermAdapter::damage(VTermRect rect)
 {
     using namespace vtermadapt;
-    drawArea( vts, getSize(),
-              {rect.start_col, rect.start_row, rect.end_col, rect.end_row},
-              sharedState->surface );
+    sharedState.lock([&] (auto &sharedState) {
+        drawArea( vts, getSize(),
+                  {rect.start_col, rect.start_row, rect.end_col, rect.end_row},
+                  sharedState.surface );
+    });
     return true;
 }
 
@@ -413,8 +430,8 @@ int VTermAdapter::moverect(VTermRect dest, VTermRect src)
 
 int VTermAdapter::movecursor(VTermPos pos, VTermPos oldpos, int visible)
 {
-    sharedState->cursorChanged = true;
-    sharedState->cursorPos = {pos.col, pos.row};
+    localState.cursorChanged = true;
+    localState.cursorPos = {pos.col, pos.row};
     return true;
 }
 
@@ -438,16 +455,16 @@ int VTermAdapter::settermprop(VTermProp prop, VTermValue *val)
     switch (prop)
     {
         case VTERM_PROP_TITLE:
-            sharedState->titleChanged = true;
-            sharedState->title = std::move(strFragBuf);
+            localState.titleChanged = true;
+            localState.title = std::move(strFragBuf);
             break;
         case VTERM_PROP_CURSORVISIBLE:
-            sharedState->cursorChanged = true;
-            sharedState->cursorVisible = val->boolean;
+            localState.cursorChanged = true;
+            localState.cursorVisible = val->boolean;
             break;
         case VTERM_PROP_CURSORBLINK:
-            sharedState->cursorChanged = true;
-            sharedState->cursorBlink = val->boolean;
+            localState.cursorChanged = true;
+            localState.cursorBlink = val->boolean;
             break;
         case VTERM_PROP_MOUSE:
             mouseEnabled = val->boolean;
