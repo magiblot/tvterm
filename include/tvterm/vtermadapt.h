@@ -26,6 +26,7 @@ class VTermAdapter final : public TerminalAdapter
     struct VTerm *vt;
     struct VTermState *state;
     struct VTermScreen *vts;
+    GrowArray &outputBuffer;
     TerminalSharedState *sharedState;
     GrowArray strFragBuf;
     LineStack linestack;
@@ -56,16 +57,16 @@ class VTermAdapter final : public TerminalAdapter
 
 public:
 
-    VTermAdapter(TPoint size, TerminalSharedState &aSharedState) noexcept;
+    VTermAdapter(TPoint size, GrowArray &aOutputBuffer, TerminalSharedState &aSharedState) noexcept;
     ~VTermAdapter();
 
-    static TerminalAdapter &create(TPoint size, TerminalSharedState &aSharedState) noexcept;
+    static TerminalAdapter &create(TPoint size, GrowArray &aOutputBuffer, TerminalSharedState &aSharedState) noexcept;
     static void childActions() noexcept;
 };
 
-inline TerminalAdapter &VTermAdapter::create(TPoint size, TerminalSharedState &aSharedState) noexcept
+inline TerminalAdapter &VTermAdapter::create(TPoint size, GrowArray &aOutputBuffer, TerminalSharedState &aSharedState) noexcept
 {
-    return *new VTermAdapter(size, aSharedState);
+    return *new VTermAdapter(size, aOutputBuffer, aSharedState);
 }
 
 inline TSpan<const VTermScreenCell> VTermAdapter::LineStack::top() const

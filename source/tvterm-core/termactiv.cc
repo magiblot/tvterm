@@ -8,12 +8,12 @@ namespace tvterm
 {
 
 inline TerminalActivity::TerminalActivity( TPoint size,
-                                           TerminalAdapter &(&createTerminal)(TPoint, TerminalSharedState &),
+                                           TerminalAdapterFactory &createTerminal,
                                            PtyDescriptor ptyDescriptor,
                                            ThreadPool &threadPool ) noexcept :
     pty(ptyDescriptor),
     async(*this, pty.getMaster()),
-    terminal(createTerminal(size, sharedState))
+    terminal(createTerminal(size, outputBuffer, sharedState))
 {
     threadPool.run([&, g = std::unique_ptr<TerminalActivity>(this)] () noexcept {
         async.run();
@@ -23,7 +23,7 @@ inline TerminalActivity::TerminalActivity( TPoint size,
 }
 
 TerminalActivity *TerminalActivity::create( TPoint size,
-                                            TerminalAdapter &(&createTerminal)(TPoint, TerminalSharedState &),
+                                            TerminalAdapterFactory &createTerminal,
                                             void (&childActions)(),
                                             void (&onError)(const char *),
                                             ThreadPool &threadPool ) noexcept
@@ -95,13 +95,13 @@ void TerminalActivity::advanceWaitState(int error, bool isTimeout) noexcept
             checkSize();
             updated = true;
             TEvent::putNothing();
-            async.writeOutput(terminal.takeWriteBuffer());
             waitState = wsReady;
             return async.waitInput();
         case wsEOF:
             updated = true;
             TEvent::putNothing();
             return;
+            async.writeOutput(std::move(outputBuffer));
     }
     advanceWaitState(0, false);
 }
@@ -134,7 +134,7 @@ void TerminalActivity::sendFocus(bool focus) noexcept
 {
     async.dispatch([this, focus] {
         terminal.setFocus(focus);
-        async.writeOutput(terminal.takeWriteBuffer());
+        async.writeOutput(std::move(outputBuffer));
     });
 }
 
@@ -142,7 +142,7 @@ void TerminalActivity::sendKeyDown(const KeyDownEvent &keyDown) noexcept
 {
     async.dispatch([this, keyDown] {
         terminal.handleKeyDown(keyDown);
-        async.writeOutput(terminal.takeWriteBuffer());
+        async.writeOutput(std::move(outputBuffer));
     });
 }
 
@@ -150,7 +150,7 @@ void TerminalActivity::sendMouse(ushort what, const MouseEventType &mouse) noexc
 {
     async.dispatch([this, what, mouse] {
         terminal.handleMouse(what, mouse);
-        async.writeOutput(terminal.takeWriteBuffer());
+        async.writeOutput(std::move(outputBuffer));
     });
 }
 

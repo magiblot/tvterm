@@ -85,10 +85,6 @@ struct TerminalSharedState
 
 class TerminalAdapter
 {
-protected:
-
-    GrowArray writeBuffer;
-
 public:
 
     TerminalAdapter() noexcept = default;
@@ -100,14 +96,9 @@ public:
     virtual void handleMouse(ushort what, const MouseEventType &mouse) noexcept = 0;
     virtual void receive(TSpan<const char> buf, TerminalSharedState &sharedState) noexcept = 0;
     virtual void flushDamage(TerminalSharedState &sharedState) noexcept = 0;
-
-    GrowArray takeWriteBuffer() noexcept;
 };
 
-inline GrowArray TerminalAdapter::takeWriteBuffer() noexcept
-{
-    return std::move(writeBuffer);
-}
+using TerminalAdapterFactory = TerminalAdapter &(TPoint size, GrowArray &outputBuffer, TerminalSharedState &sharedState);
 
 } // namespace tvterm
 

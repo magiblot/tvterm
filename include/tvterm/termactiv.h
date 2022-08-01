@@ -30,6 +30,7 @@ class TerminalActivity final : private AsyncIOClient
 
     PtyProcess pty;
     AsyncIO async;
+    GrowArray outputBuffer;
 
     WaitState waitState {wsRead};
     // case wsReady:
@@ -47,7 +48,7 @@ class TerminalActivity final : private AsyncIOClient
     TerminalAdapter &terminal;
 
     TerminalActivity( TPoint size,
-                      TerminalAdapter &(&)(TPoint, TerminalSharedState &),
+                      TerminalAdapterFactory &,
                       PtyDescriptor, ThreadPool & ) noexcept;
     ~TerminalActivity();
 
@@ -60,7 +61,7 @@ public:
     // 'createTerminal' must return a heap-allocated TerminalAdapter.
     // The lifetime of 'threadPool' must exceed that of the returned object.
     static TerminalActivity *create( TPoint size,
-                                     TerminalAdapter &(&createTerminal)(TPoint, TerminalSharedState &),
+                                     TerminalAdapterFactory &createTerminal,
                                      void (&childActions)(),
                                      void (&onError)(const char *reason),
                                      ThreadPool &threadPool ) noexcept;

@@ -300,7 +300,8 @@ namespace vtermadapt
 
 } // namespace vtermadapt
 
-VTermAdapter::VTermAdapter(TPoint size, TerminalSharedState &aSharedState) noexcept
+VTermAdapter::VTermAdapter(TPoint size, GrowArray &aOutputBuffer, TerminalSharedState &aSharedState) noexcept :
+    outputBuffer(aOutputBuffer)
 {
     sharedState = &aSharedState;
 
@@ -392,7 +393,7 @@ void VTermAdapter::setFocus(bool focus) noexcept
 
 void VTermAdapter::writeOutput(const char *data, size_t size)
 {
-    writeBuffer.push(data, size);
+    outputBuffer.push(data, size);
 }
 
 int VTermAdapter::damage(VTermRect rect)
