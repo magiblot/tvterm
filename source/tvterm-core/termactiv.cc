@@ -15,11 +15,9 @@ inline TerminalActivity::TerminalActivity( TPoint size,
     async(*this, pty.getMaster()),
     terminal(createTerminal(size, outputBuffer, sharedState))
 {
-    threadPool.run([&, g = std::unique_ptr<TerminalActivity>(this)] () noexcept {
+    threadPool.run([&, ownership = std::unique_ptr<TerminalActivity>(this)] () noexcept {
         async.run();
     });
-
-    async.waitInput();
 }
 
 TerminalActivity *TerminalActivity::create( TPoint size,
@@ -44,82 +42,95 @@ void TerminalActivity::destroy() noexcept
     async.stop();
 }
 
-void TerminalActivity::onWaitFinish(int error, bool isTimeout) noexcept
-{
-    advanceWaitState(error, isTimeout);
-}
-
-void TerminalActivity::advanceWaitState(int error, bool isTimeout) noexcept
+bool TerminalActivity::onWaitFinish(bool isError, bool isTimeout) noexcept
 {
     using std::chrono::milliseconds;
-    switch (waitState)
+    if (isError && waitState != wsEOF)
+        waitState = wsFlush;
+    while (true)
     {
-        case wsReady:
-            if (!error && async.canReadInput())
-            {
-                consecutiveEOF = 0;
-                readTimeout = clock::now() + milliseconds(maxReadTimeMs);
-                waitState = wsRead;
-            }
-            else if (++consecutiveEOF < maxConsecutiveEOF)
-                // This happens sometimes, especially when running in Valgrind.
-                // Give it a few chances before assuming EOF.
-                return async.waitInput();
-            else
-                waitState = wsEOF;
-            break;
-        case wsRead:
+        switch (waitState)
         {
-            time_point now;
-            if (!isTimeout && (now = clock::now()) < readTimeout)
-            {
-                if (async.canReadInput())
+            case wsInitial:
+                if (consecutiveEOF < maxConsecutiveEOF)
                 {
-                    static thread_local char buf alignas(4096) [bufSize];
-                    size_t bytes = async.readInput(buf);
-                    terminal.receive({buf, bytes});
+                    readTimeout = Clock::now() + milliseconds(maxReadTimeMs);
+                    waitState = wsRead;
                 }
                 else
-                    return async.waitInputUntil(::min(readTimeout, now + milliseconds(inputWaitStepMs)));
-            }
-            else
+                    waitState = wsEOF;
+                break;
+            case wsRead:
+            {
+                if (!isTimeout)
+                {
+                    TimePoint now;
+                    while ((now = Clock::now()) < readTimeout)
+                    {
+                        static thread_local char buf alignas(4096) [bufSize];
+                        if (size_t bytes = async.readInput({buf, bufSize}))
+                        {
+                            consecutiveEOF = -1;
+                            terminal.receive({buf, bytes});
+                        }
+                        else if (++consecutiveEOF < maxConsecutiveEOF)
+                        {
+                            async.setWaitTimeout(
+                                ::min<Duration>(milliseconds(inputWaitStepMs), readTimeout - now)
+                            );
+                            return true;
+                        }
+                        else
+                            break;
+                    }
+                }
                 waitState = wsFlush;
-            break;
+                break;
+            }
+            case wsFlush:
+                terminal.flushDamage();
+                checkSize();
+                updated = true;
+                TEvent::putNothing();
+                if (!isError)
+                {
+                    async.writeOutput(std::move(outputBuffer));
+                    waitState = wsInitial;
+                    return true;
+                }
+                waitState = wsEOF;
+                break;
+            case wsEOF:
+                updated = true;
+                closed = true;
+                TEvent::putNothing();
+                return false;
         }
-        case wsFlush:
-            terminal.flushDamage();
-            checkSize();
-            updated = true;
-            TEvent::putNothing();
-            waitState = wsReady;
-            return async.waitInput();
-        case wsEOF:
-            updated = true;
-            TEvent::putNothing();
-            return;
-            async.writeOutput(std::move(outputBuffer));
     }
-    advanceWaitState(0, false);
 }
 
 void TerminalActivity::checkSize() noexcept
 {
-    if (waitState != wsRead && viewSizeChanged)
+    if (waitState != wsRead && viewportSizeChanged)
     {
-        viewSizeChanged = false;
-        terminal.setSize(viewSize);
+        viewportSizeChanged = false;
+        terminal.setSize(viewportSize);
         if (isClosed())
+        {
+            terminal.flushDamage();
             updated = true;
+            TEvent::putNothing();
+        }
         else
-            pty.setSize(viewSize);
+            pty.setSize(viewportSize);
     }
 }
 
 void TerminalActivity::sendResize(TPoint aSize) noexcept
 {
     async.dispatch([this, aSize] {
-        viewSizeChanged = true;
-        viewSize = aSize;
+        viewportSizeChanged = true;
+        viewportSize = aSize;
         checkSize();
     });
 }

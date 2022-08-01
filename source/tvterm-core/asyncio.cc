@@ -1,6 +1,10 @@
 #include <tvterm/asyncio.h>
+#include <tvterm/array.h>
 
 #include <tvision/tv.h>
+
+#include <asio/write.hpp>
+#include <asio/buffer.hpp>
 
 namespace tvterm
 {
@@ -15,6 +19,7 @@ AsyncIO::AsyncIO(AsyncIOClient &aClient, int fd) noexcept :
 
 void AsyncIO::run() noexcept
 {
+    waitInput();
     io.run();
 }
 
@@ -26,44 +31,45 @@ void AsyncIO::stop() noexcept
 
 void AsyncIO::waitInput() noexcept
 {
-    if (!waitingForInput)
-    {
-        waitingForInput = true;
-        descriptor.async_wait(
-            asio::posix::stream_descriptor::wait_read,
-            [this] (auto &error) noexcept {
-                waitingForInput = false;
-                inputWaitTimer.cancel();
-                client.onWaitFinish(error.value(), false);
-            }
-        );
-    }
-}
-
-void AsyncIO::waitInputUntil(time_point timeout) noexcept
-{
-    waitInput();
-    inputWaitTimer.expires_at(timeout);
-    inputWaitTimer.async_wait(
+    descriptor.async_wait(
+        asio::posix::stream_descriptor::wait_read,
         [this] (auto &error) noexcept {
-            if (error != asio::error::operation_aborted)
-                client.onWaitFinish(error.value(), true);
+            inputWaitTimer.cancel();
+            if (client.onWaitFinish(!!error, false))
+                waitInput();
         }
     );
 }
 
-bool AsyncIO::canReadInput() noexcept
+void AsyncIO::setWaitTimeout(Duration duration) noexcept
 {
-    decltype(descriptor)::bytes_readable cmd;
-    asio::error_code err;
-    descriptor.io_control(cmd, err);
-    return !err && cmd.get() > 0;
+    inputWaitTimer.expires_after(duration);
+    inputWaitTimer.async_wait(
+        [this] (auto &error) noexcept {
+            if (error != asio::error::operation_aborted)
+                client.onWaitFinish(!!error, true);
+        }
+    );
 }
 
 size_t AsyncIO::readInput(TSpan<char> buf) noexcept
 {
-    asio::error_code ec;
-    return descriptor.read_some(asio::buffer(buf.data(), buf.size()), ec);
+    decltype(descriptor)::bytes_readable cmd;
+    asio::error_code error;
+    descriptor.io_control(cmd, error);
+    if (!error && cmd.get() > 0)
+        return descriptor.read_some(asio::buffer(buf.data(), buf.size()), error);
+    return 0;
+}
+
+void AsyncIO::writeOutput(GrowArray &&buf) noexcept
+{
+    asio::mutable_buffer mb {buf.data(), buf.size()};
+    if (mb.size())
+        asio::async_write(
+            descriptor, mb,
+            [buf = std::move(buf)] (auto, auto) noexcept {}
+        );
 }
 
 } // namespace tvterm

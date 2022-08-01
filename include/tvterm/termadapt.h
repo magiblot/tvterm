@@ -93,7 +93,7 @@ public:
     virtual void setFocus(bool focus) noexcept = 0;
     virtual void handleKeyDown(const KeyDownEvent &keyDown) noexcept = 0;
     virtual void handleMouse(ushort what, const MouseEventType &mouse) noexcept = 0;
-    virtual void receive(TSpan<const char> buf) noexcept = 0;
+    virtual void receive(TSpan<const char> data) noexcept = 0;
     virtual void flushDamage() noexcept = 0;
 };
 

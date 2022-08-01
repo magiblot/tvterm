@@ -20,39 +20,45 @@ class TerminalActivity final : private AsyncIOClient
 {
     friend std::default_delete<TerminalActivity>;
 
-    using clock = AsyncIO::clock;
-    using time_point = AsyncIO::time_point;
-
-    enum { bufSize = 4096 };
-    enum { maxConsecutiveEOF = 5 };
-    enum WaitState : uint8_t { wsReady, wsRead, wsFlush, wsEOF };
-    enum { maxReadTimeMs = 20, inputWaitStepMs = 5 };
+    using Clock = AsyncIO::Clock;
+    using TimePoint = Clock::time_point;
+    using Duration = Clock::duration;
 
     PtyProcess pty;
     AsyncIO async;
     GrowArray outputBuffer;
-
-    WaitState waitState {wsRead};
-    // case wsReady:
-    int consecutiveEOF {0};
-    // case wsRead:
-    time_point readTimeout;
-
-    bool viewSizeChanged {false};
-    TPoint viewSize;
-
-    std::atomic<bool> updated {false};
     Mutex<TerminalSharedState> sharedState;
 
+    // This must be initialized after 'outputBuffer' and 'sharedState'.
     TerminalAdapter &terminal;
+
+    std::atomic<bool> updated {false};
+    std::atomic<bool> closed {false};
 
     TerminalActivity( TPoint size,
                       TerminalAdapterFactory &,
                       PtyDescriptor, ThreadPool & ) noexcept;
     ~TerminalActivity();
 
-    void onWaitFinish(int, bool) noexcept override;
-    void advanceWaitState(int, bool) noexcept;
+private:
+
+    // Stuff acessed only from child thread.
+
+    enum { bufSize = 4096 };
+    enum { maxConsecutiveEOF = 5 };
+    enum { maxReadTimeMs = 20, inputWaitStepMs = 5 };
+    enum WaitState : uint8_t { wsInitial, wsRead, wsFlush, wsEOF };
+
+    WaitState waitState {wsRead};
+    // case wsRead:
+    TimePoint readTimeout;
+
+    int consecutiveEOF {0};
+
+    bool viewportSizeChanged {false};
+    TPoint viewportSize;
+
+    bool onWaitFinish(bool, bool) noexcept override;
     void checkSize() noexcept;
 
 public:
@@ -88,7 +94,7 @@ inline bool TerminalActivity::hasChanged() noexcept
 
 inline bool TerminalActivity::isClosed() const noexcept
 {
-    return waitState == wsEOF;
+    return closed;
 }
 
 inline TPoint TerminalActivity::getSize() const noexcept
