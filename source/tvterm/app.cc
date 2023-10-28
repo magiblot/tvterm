@@ -59,21 +59,27 @@ TMenuBar *TVTermApp::initMenuBar(TRect r)
     r.b.y = r.a.y+1;
     return new TMenuBar( r,
         *new TSubMenu( "~F~ile", kbAltF, hcNoContext ) +
-            *new TMenuItem( "~N~ew", cmNewTerm, kbCtrlN, hcNoContext, "Ctrl-N" ) +
+            // The rational for using Alt+_ shortctus for window management is that
+            // most TUI apps are not sofisticated enough to need the Alt key
+            // for shortcuts (usually only F-keys and sometimes Ctrl are used).
+            // This frees us to use Alt + <intuitive letter> with only a minimal chance
+            // of it clashing with an app.
+
+            *new TMenuItem( "~N~ew Window", cmNewTerm, kbAltN, hcNoContext, "Alt-N" ) +
             newLine() +
             *new TMenuItem( "~C~hange dir...", cmChangeDir, kbNoKey ) +
             *new TMenuItem( "S~u~spend", cmDosShell, kbNoKey, hcNoContext ) +
-            *new TMenuItem( "E~x~it", cmQuit, kbAltX, hcNoContext, "Alt-X" ) +
+            *new TMenuItem( "E~x~it", cmQuit, kbAltQ, hcNoContext, "Alt-Q" ) +
         *new TSubMenu( "~W~indows", kbAltW ) +
-            *new TMenuItem( "~S~ize/move",cmResize, kbCtrlF5, hcNoContext, "Ctrl-F5" ) +
-            *new TMenuItem( "~Z~oom", cmZoom, kbF5, hcNoContext, "F5" ) +
-            *new TMenuItem( "~T~ile (Columns First)", cmTileCols, kbNoKey ) +
+            *new TMenuItem( "~M~ove/Resize",cmResize, kbAltM, hcNoContext, "Alt-M" ) +
+            *new TMenuItem( "~Z~oom", cmZoom, kbAltZ, hcNoContext, "Alt-Z" ) +
+            *new TMenuItem( "~T~ile (Columns First)", cmTileCols, kbAltT, hcNoContext, "Alt-T" ) +
             *new TMenuItem( "Tile (~R~ows First)", cmTileRows, kbNoKey ) +
             *new TMenuItem( "C~a~scade", cmCascade, kbNoKey ) +
-            *new TMenuItem( "~N~ext", cmNext, kbF6, hcNoContext, "F6" ) +
-            *new TMenuItem( "~P~revious", cmPrev, kbShiftF6, hcNoContext, "Shift-F6" ) +
-            *new TMenuItem( "~C~lose", cmClose, kbAltF3, hcNoContext, "Alt+F3" )
-            );
+            *new TMenuItem( "~N~ext", cmNext, kbAltEqual, hcNoContext, "Alt-+" ) +
+            *new TMenuItem( "~P~revious", cmPrev, kbAltMinus, hcNoContext, "Alt--" ) +
+            *new TMenuItem( "~C~lose", cmClose, kbAltX, hcNoContext, "Alt-X" /*TODO: Also Alt-W (what ppl are used to)*/ )
+    );
 }
 
 TStatusLine *TVTermApp::initStatusLine( TRect r )
@@ -88,10 +94,9 @@ TStatusLine *TVTermApp::initStatusLine( TRect r )
         *new TStatusDef( hcInputGrabbed, hcInputGrabbed ) +
             *new TStatusItem( "~Alt-PgDn~ Release Input", kbAltPgDn, cmReleaseInput ) +
         *new TStatusDef( 0, 0xFFFF ) +
-            *new TStatusItem( "~Ctrl-N~ New", kbNoKey, cmNewTerm ) +
-            *new TStatusItem( "~F6~ Next", kbNoKey, cmNext ) +
-            *new TStatusItem( "~Alt-PgUp~ Grab Input", kbAltPgUp, cmGrabInput ) +
-            *new TStatusItem( "~F12~ Menu" , kbF12, cmMenu )
+            *new TStatusItem( "~Alt-Q~ Quit", kbNoKey, cmNewTerm ) +
+            *new TStatusItem( "~F12~ Menu" , kbF12, cmMenu ) +
+            *new TStatusItem( "~Alt-PgUp~ Grab Input", kbAltPgUp, cmGrabInput )
             );
 }
 
