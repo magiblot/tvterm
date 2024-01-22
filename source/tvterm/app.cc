@@ -182,10 +182,125 @@ static void onTermError(const char *reason)
     messageBox(mfError | mfOKButton, "Cannot create terminal: %s.", reason);
 };
 
+void setCenter(TRect& rect, const TPoint pt)
+{
+    int w = (rect.b.x - rect.a.x);
+    int h = (rect.b.y - rect.a.y);
+
+    rect.a.x = pt.x - w/2;
+    rect.a.y = pt.y - h/2;
+    rect.b.x = pt.x - w/2 + w;  // Keeps odd sizes
+    rect.b.y = pt.y - h/2 + h;
+}
+
+TPoint getCenter(const TRect& rect)
+{
+    TPoint c = {
+        (rect.a.x + rect.b.x) / 2,
+        (rect.a.y + rect.b.y) / 2
+    };
+    return c;
+}
+
+TRect TVTermApp::newWindowCoords()
+{
+    size_t count = getOpenTermCount();
+    TRect dtop_bounds = deskTop->getExtent();
+
+    if (count == 0)
+    {
+        // If there aren't any windows, fill the whole desktop
+        return deskTop->getExtent();
+    }
+    else if (count == 1)
+    {
+        // If there is a single window that is maximized, split the desktop equally.
+        TView *existing = deskTop->first();
+
+        if (existing->getBounds() == dtop_bounds)
+        {
+            TRect left = dtop_bounds;
+            left.b.x /= 2;      // Make it cover only half the screen
+            existing->changeBounds(left);
+            
+            TRect right = dtop_bounds;
+            right.a.x = left.b.x;
+            return right;
+        }
+        // Else maximized
+        return dtop_bounds;
+    }
+    else if (count == 2)
+    {
+        // If there are 2 tiled windows, start making floating ones
+        if (deskTop->first()->getBounds().Union(deskTop->first()->nextView()->getBounds()) == dtop_bounds)
+        {
+            TRect new_bounds = dtop_bounds;
+            // Make the window half the screen size
+            new_bounds.b.x /= 2;
+            new_bounds.b.y = (dtop_bounds.b.y * 2) / 3;
+            setCenter(new_bounds, getCenter(dtop_bounds));
+            return new_bounds;
+        }
+
+        // Otherwise follow standard Many Window behavior
+    }
+
+    // Many windows. The goal is to stagger the windows in a way that they don't overlap each other fully.
+
+    // Same size as the most recently created window
+    TView *last_window = deskTop->first();  // Apparently TVision prepends new windows
+    TRect new_bounds = last_window->getBounds();
+
+    // Find the center of 'gravity' of existing windows.
+    signed int avg_x = 0;
+    signed int avg_y = 0;   // Average distance of center of the window from the center of the desktop
+    int n = 0;
+
+    TPoint dtop_center = getCenter(dtop_bounds);
+
+    for (TView *cur = deskTop->first(); cur != NULL; cur = cur->nextView())
+    {
+        TPoint cur_center = getCenter(cur->getBounds());
+
+        if (cur_center.x != dtop_center.x && cur_center.y != dtop_center.y)     // Only count windows that aren't centred in any way.
+        {
+            avg_x += (cur_center.x - dtop_center.x);
+            avg_y += (cur_center.y - dtop_center.y);
+        }
+
+        // messageBox(0, "(%d,%d) => (%d,%d)", cur_center.x, cur_center.y, dtop_center.x, dtop_center.y);
+
+        n++;
+    }
+
+    avg_x /= n;
+    avg_y /= n;
+
+    // Place the new window opposite this average point with respect to the center.
+    setCenter(new_bounds, {
+        dtop_center.x + (-avg_x),
+        dtop_center.y + (-avg_y),
+    });
+
+    // If it is still fully overlapping another window (the window layout is probably symmetrical), move it by (1,1).
+    do {
+        bool unique = true;
+        for (TView *cur = deskTop->first(); cur != NULL; cur = cur->nextView())
+            if (new_bounds.a == cur->getBounds().a)
+                unique = false;
+        
+        if (!unique)
+            new_bounds.move(1, 1);
+        else
+            return new_bounds;
+    } while (1);
+}
+
 void TVTermApp::newTerm()
 {
     using namespace tvterm;
-    TRect r = deskTop->getExtent();
+    TRect r = newWindowCoords();
     auto *term = TerminalActivity::create( TerminalWindow::viewSize(r),
                                            VTermAdapter::create,
                                            VTermAdapter::childActions,
