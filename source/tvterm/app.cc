@@ -74,11 +74,14 @@ TMenuBar *TVTermApp::initMenuBar(TRect r)
             *new TMenuItem( "~M~ove/Resize",cmResize, kbAltM, hcNoContext, "Alt-M" ) +
             *new TMenuItem( "~Z~oom", cmZoom, kbAltZ, hcNoContext, "Alt-Z" ) +
             *new TMenuItem( "~T~ile (Columns First)", cmTileCols, kbAltT, hcNoContext, "Alt-T" ) +
-            *new TMenuItem( "Tile (~R~ows First)", cmTileRows, kbNoKey ) +
             *new TMenuItem( "C~a~scade", cmCascade, kbNoKey ) +
+            newLine() +
+            *new TMenuItem( "Snap ~L~eft", cmSnapL, kbAltL, hcNoContext, "Alt-L" ) +
+            *new TMenuItem( "Snap ~R~ight", cmSnapR, kbAltR, hcNoContext, "Alt-R" ) +
+            newLine() +
             *new TMenuItem( "~N~ext", cmNext, kbAltEqual, hcNoContext, "Alt-+" ) +
             *new TMenuItem( "~P~revious", cmPrev, kbAltMinus, hcNoContext, "Alt--" ) +
-            *new TMenuItem( "~C~lose", cmClose, kbAltX, hcNoContext, "Alt-X" /*TODO: Also Alt-W (what ppl are used to)*/ )
+            *new TMenuItem( "~C~lose", cmClose, kbAltW, hcNoContext, "Alt-W" /*TODO: Also Alt-X*/ )
     );
 }
 
@@ -110,23 +113,40 @@ void TVTermApp::handleEvent(TEvent &event)
 {
     TApplication::handleEvent(event);
     bool handled = true;
-    switch (event.what)
+    if (event.what & evCommand)
     {
-        case evCommand:
-            switch (event.message.command)
-            {
-                case cmNewTerm: newTerm(); break;
-                case cmChangeDir: changeDir(); break;
-                case cmTileCols: getDeskTop()->tileVertical(getTileRect()); break;
-                case cmTileRows: getDeskTop()->tileHorizontal(getTileRect()); break;
-                default:
-                    handled = false;
-                    break;
-            }
-            break;
-        default:
-            handled = false;
-            break;
+        switch (event.message.command)
+        {
+            case cmNewTerm: newTerm(); break;
+            case cmChangeDir: changeDir(); break;
+            case cmTileCols: getDeskTop()->tileVertical(getTileRect()); break;
+            case cmSnapL:
+                if (deskTop->current)
+                {
+                    TRect bounds = deskTop->getExtent();
+                    bounds.b.x /= 2;
+                    deskTop->current->changeBounds(bounds);
+                }
+                break;
+            case cmSnapR:
+                if (deskTop->current)
+                {
+                    TRect bounds = deskTop->getExtent();
+                    bounds.a.x = bounds.b.x / 2;
+                    deskTop->current->changeBounds(bounds);
+                }
+                break;
+            default:
+                handled = false;
+                break;
+        }
+    }
+    else if (event.what & evKeyboard)
+    {
+        handled = false;
+    }
+    else {
+        handled = false;
     }
     if (handled)
         clearEvent(event);
