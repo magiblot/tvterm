@@ -27,13 +27,14 @@ struct TVTermApp : public TApplication
     Boolean valid(ushort command) override;
     void idle() override;
 
+private:
     size_t getOpenTermCount();
+    TRect newWindowCoords();
 
     // Command handlers
-
+public:
     void newTerm();
     void changeDir();
-
 };
 
 inline TVTermDesk* TVTermApp::getDeskTop()

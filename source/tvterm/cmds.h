@@ -8,6 +8,8 @@ enum : ushort {
     cmReleaseInput,
     cmTileCols,
     cmTileRows,
+    cmSnapL,
+    cmSnapR,
     // Commands that cannot be deactivated.
     cmNewTerm           = 1000,
     cmIdle,
