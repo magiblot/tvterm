@@ -8,21 +8,14 @@ namespace tvterm
 {
 
 BasicTerminalFrame::BasicTerminalFrame(const TRect &bounds) noexcept :
-    TFrame(bounds),
-    term(nullptr)
+    TFrame(bounds)
 {
 }
 
 void BasicTerminalFrame::draw()
 {
     TFrame::draw();
-    if (term)
-        drawSize();
-}
 
-void BasicTerminalFrame::drawSize() noexcept
-// Pre: 'term' != nullptr.
-{
     if (state & sfDragging)
     {
         TRect r(4, size.y - 1, min(size.x - 4, 14), size.y);
@@ -30,7 +23,7 @@ void BasicTerminalFrame::drawSize() noexcept
         {
             TDrawBuffer b;
             char str[256];
-            TPoint termSize = term->getSize();
+            TPoint termSize = {max(size.x - 2, 0), max(size.y - 2, 0)};
             snprintf(str, sizeof(str), " %dx%d ", termSize.x, termSize.y);
             uchar color = mapColor(5);
             ushort width = b.moveStr(0, str, color, r.b.x - r.a.x);

@@ -74,7 +74,6 @@ public:
 
     bool hasChanged() noexcept;
     bool isClosed() const noexcept;
-    TPoint getSize() const noexcept;
     void sendResize(TPoint aSize) noexcept;
     void sendFocus(bool focus) noexcept;
     void sendKeyDown(const KeyDownEvent &keyDown) noexcept;
@@ -95,11 +94,6 @@ inline bool TerminalActivity::hasChanged() noexcept
 inline bool TerminalActivity::isClosed() const noexcept
 {
     return closed;
-}
-
-inline TPoint TerminalActivity::getSize() const noexcept
-{
-    return pty.getSize();
 }
 
 template <class Func>

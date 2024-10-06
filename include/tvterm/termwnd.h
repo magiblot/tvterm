@@ -33,7 +33,6 @@ class BasicTerminalWindow : public TWindow
     TerminalView *view {nullptr};
     size_t titleCapacity {0};
     GrowArray termTitle;
-    TPoint lastTermSize {0, 0};
 
     void checkChanges() noexcept;
     void resizeTitle(size_t);

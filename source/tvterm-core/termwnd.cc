@@ -27,36 +27,30 @@ BasicTerminalWindow::BasicTerminalWindow( const TRect &bounds,
     options |= ofTileable;
     eventMask |= evBroadcast;
     setState(sfShadow, False);
-    ((BasicTerminalFrame *) frame)->setTerm(&aTerm);
     view = new TerminalView(getExtent().grow(-1, -1), aTerm);
     insert(view);
 }
 
 void BasicTerminalWindow::shutDown()
 {
-    if (frame)
-        ((BasicTerminalFrame *) frame)->setTerm(nullptr);
     view = nullptr;
     TWindow::shutDown();
 }
 
 void BasicTerminalWindow::checkChanges() noexcept
 {
-    bool frameChanged = false;
     if (view)
     {
         auto &term = view->term;
+        bool titleChanged = false;
         if (term.hasChanged())
         {
             view->drawView();
-            frameChanged |= term.getState([&] (auto &state) {
+            titleChanged = term.getState([&] (auto &state) {
                 return updateTitle(term, state);
             });
         }
-        auto termSize = term.getSize();
-        frameChanged |= lastTermSize != termSize;
-        lastTermSize = termSize;
-        if (frame && frameChanged)
+        if (frame && titleChanged)
             frame->drawView();
     }
 }

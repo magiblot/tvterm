@@ -7,28 +7,17 @@
 namespace tvterm
 {
 
-class TerminalActivity;
+// A TFrame that displays the terminal dimensions while being dragged.
+// It assumes that the terminal fills the inner area of the frame.
 
 class BasicTerminalFrame : public TFrame
 {
-    TerminalActivity *term;
-
-    void drawSize() noexcept;
-
 public:
 
     BasicTerminalFrame(const TRect &bounds) noexcept;
 
-    // If not null, the lifetime of 'term' must exceed that of 'this'.
-    void setTerm(TerminalActivity *term) noexcept;
-
     void draw() override;
 };
-
-inline void BasicTerminalFrame::setTerm(TerminalActivity *aTerm) noexcept
-{
-    term = aTerm;
-}
 
 } // namespace tvterm
 
