@@ -31,45 +31,19 @@ namespace vtermemu
     static const std::unordered_map<ushort, ushort> keys =
     {
         { kbEnter,          VTERM_KEY_ENTER             },
-        { kbCtrlEnter,      VTERM_KEY_ENTER             },
         { kbTab,            VTERM_KEY_TAB               },
-        { kbShiftTab,       VTERM_KEY_TAB               },
         { kbBack,           VTERM_KEY_BACKSPACE         },
-        { kbAltBack,        VTERM_KEY_BACKSPACE         },
-        { kbCtrlBack,       VTERM_KEY_BACKSPACE         },
         { kbEsc,            VTERM_KEY_ESCAPE            },
         { kbUp,             VTERM_KEY_UP                },
-        { kbAltUp,          VTERM_KEY_UP                },
-        { kbCtrlUp,         VTERM_KEY_UP                },
         { kbDown,           VTERM_KEY_DOWN              },
-        { kbAltDown,        VTERM_KEY_DOWN              },
-        { kbCtrlDown,       VTERM_KEY_DOWN              },
         { kbLeft,           VTERM_KEY_LEFT              },
-        { kbAltLeft,        VTERM_KEY_LEFT              },
-        { kbCtrlLeft,       VTERM_KEY_LEFT              },
         { kbRight,          VTERM_KEY_RIGHT             },
-        { kbAltRight,       VTERM_KEY_RIGHT             },
-        { kbCtrlRight,      VTERM_KEY_RIGHT             },
         { kbIns,            VTERM_KEY_INS               },
-        { kbAltIns,         VTERM_KEY_INS               },
-        { kbCtrlIns,        VTERM_KEY_INS               },
-        { kbShiftIns,       VTERM_KEY_INS               },
         { kbDel,            VTERM_KEY_DEL               },
-        { kbAltDel,         VTERM_KEY_DEL               },
-        { kbCtrlDel,        VTERM_KEY_DEL               },
-        { kbShiftDel,       VTERM_KEY_DEL               },
         { kbHome,           VTERM_KEY_HOME              },
-        { kbAltHome,        VTERM_KEY_HOME              },
-        { kbCtrlHome,       VTERM_KEY_HOME              },
         { kbEnd,            VTERM_KEY_END               },
-        { kbAltEnd,         VTERM_KEY_END               },
-        { kbCtrlEnd,        VTERM_KEY_END               },
         { kbPgUp,           VTERM_KEY_PAGEUP            },
-        { kbAltPgUp,        VTERM_KEY_PAGEUP            },
-        { kbCtrlPgUp,       VTERM_KEY_PAGEUP            },
         { kbPgDn,           VTERM_KEY_PAGEDOWN          },
-        { kbAltPgDn,        VTERM_KEY_PAGEDOWN          },
-        { kbCtrlPgDn,       VTERM_KEY_PAGEDOWN          },
         { kbF1,             VTERM_KEY_FUNCTION(1)       },
         { kbF2,             VTERM_KEY_FUNCTION(2)       },
         { kbF3,             VTERM_KEY_FUNCTION(3)       },
@@ -82,42 +56,6 @@ namespace vtermemu
         { kbF10,            VTERM_KEY_FUNCTION(10)      },
         { kbF11,            VTERM_KEY_FUNCTION(11)      },
         { kbF12,            VTERM_KEY_FUNCTION(12)      },
-        { kbShiftF1,        VTERM_KEY_FUNCTION(1)       },
-        { kbShiftF2,        VTERM_KEY_FUNCTION(2)       },
-        { kbShiftF3,        VTERM_KEY_FUNCTION(3)       },
-        { kbShiftF4,        VTERM_KEY_FUNCTION(4)       },
-        { kbShiftF5,        VTERM_KEY_FUNCTION(5)       },
-        { kbShiftF6,        VTERM_KEY_FUNCTION(6)       },
-        { kbShiftF7,        VTERM_KEY_FUNCTION(7)       },
-        { kbShiftF8,        VTERM_KEY_FUNCTION(8)       },
-        { kbShiftF9,        VTERM_KEY_FUNCTION(9)       },
-        { kbShiftF10,       VTERM_KEY_FUNCTION(10)      },
-        { kbShiftF11,       VTERM_KEY_FUNCTION(11)      },
-        { kbShiftF12,       VTERM_KEY_FUNCTION(12)      },
-        { kbCtrlF1,         VTERM_KEY_FUNCTION(1)       },
-        { kbCtrlF2,         VTERM_KEY_FUNCTION(2)       },
-        { kbCtrlF3,         VTERM_KEY_FUNCTION(3)       },
-        { kbCtrlF4,         VTERM_KEY_FUNCTION(4)       },
-        { kbCtrlF5,         VTERM_KEY_FUNCTION(5)       },
-        { kbCtrlF6,         VTERM_KEY_FUNCTION(6)       },
-        { kbCtrlF7,         VTERM_KEY_FUNCTION(7)       },
-        { kbCtrlF8,         VTERM_KEY_FUNCTION(8)       },
-        { kbCtrlF9,         VTERM_KEY_FUNCTION(9)       },
-        { kbCtrlF10,        VTERM_KEY_FUNCTION(10)      },
-        { kbCtrlF11,        VTERM_KEY_FUNCTION(11)      },
-        { kbCtrlF12,        VTERM_KEY_FUNCTION(12)      },
-        { kbAltF1,          VTERM_KEY_FUNCTION(1)       },
-        { kbAltF2,          VTERM_KEY_FUNCTION(2)       },
-        { kbAltF3,          VTERM_KEY_FUNCTION(3)       },
-        { kbAltF4,          VTERM_KEY_FUNCTION(4)       },
-        { kbAltF5,          VTERM_KEY_FUNCTION(5)       },
-        { kbAltF6,          VTERM_KEY_FUNCTION(6)       },
-        { kbAltF7,          VTERM_KEY_FUNCTION(7)       },
-        { kbAltF8,          VTERM_KEY_FUNCTION(8)       },
-        { kbAltF9,          VTERM_KEY_FUNCTION(9)       },
-        { kbAltF10,         VTERM_KEY_FUNCTION(10)      },
-        { kbAltF11,         VTERM_KEY_FUNCTION(11)      },
-        { kbAltF12,         VTERM_KEY_FUNCTION(12)      },
     };
 
     static constexpr struct { ushort tv; VTermModifier vt; } modifiers[] =
@@ -135,7 +73,7 @@ namespace vtermemu
         return VTERM_KEY_NONE;
     }
 
-    static VTermModifier convMod(ulong controlKeyState)
+    static VTermModifier convMod(ushort controlKeyState)
     {
         VTermModifier mod = VTERM_MOD_NONE;
         for (const auto &m : modifiers)
@@ -158,24 +96,28 @@ namespace vtermemu
 
     static void processKey(VTerm *vt, KeyDownEvent keyDown)
     {
-        VTermModifier mod = convMod(keyDown.controlKeyState);
-        if (kbCtrlA <= keyDown.keyCode && keyDown.keyCode <= kbCtrlZ)
+        TKey tvKey(keyDown);
+        VTermModifier vtMod = convMod(tvKey.mods);
+        // Pass control characters directly, with no modifiers.
+        if ( tvKey.mods == kbCtrlShift
+             && 'A' <= tvKey.code && tvKey.code <= 'Z' )
         {
             keyDown.text[0] = keyDown.keyCode;
             keyDown.textLength = 1;
-            mod = VTermModifier(mod & ~VTERM_MOD_CTRL);
+            vtMod = VTERM_MOD_NONE;
         }
-        else if (char c = getAltChar(keyDown.keyCode))
+        // Pass other legacy 'letter+mod' combinations as text.
+        else if ( keyDown.textLength == 0
+                  && ' ' <= tvKey.code && tvKey.code < '\x7F' )
         {
-            if (c == '\xF0') c = ' '; // Alt+Space.
-            keyDown.text[0] = c;
+            keyDown.text[0] = (char) tvKey.code;
             keyDown.textLength = 1;
         }
 
-        if (keyDown.textLength)
-            vterm_keyboard_unichar(vt, utf8To32(keyDown.getText()), mod);
-        else if (VTermKey key = convKey(keyDown.keyCode))
-            vterm_keyboard_key(vt, key, mod);
+        if (keyDown.textLength != 0)
+            vterm_keyboard_unichar(vt, utf8To32(keyDown.getText()), vtMod);
+        else if (VTermKey vtKey = convKey(tvKey.code))
+            vterm_keyboard_key(vt, vtKey, vtMod);
     }
 
     static void processMouse(VTerm *vt, ushort what, const MouseEventType &mouse)
