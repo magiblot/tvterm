@@ -4,26 +4,26 @@
 #include <tvision/tv.h>
 
 #include "util.h"
-#include <tvterm/vtermadapt.h>
+#include <tvterm/vtermemu.h>
 #include <tvterm/debug.h>
 #include <unordered_map>
 
 namespace tvterm
 {
 
-const VTermScreenCallbacks VTermAdapter::callbacks =
+const VTermScreenCallbacks VTermEmulator::callbacks =
 {
-    _static_wrap(&VTermAdapter::damage),
-    _static_wrap(&VTermAdapter::moverect),
-    _static_wrap(&VTermAdapter::movecursor),
-    _static_wrap(&VTermAdapter::settermprop),
-    _static_wrap(&VTermAdapter::bell),
-    _static_wrap(&VTermAdapter::resize),
-    _static_wrap(&VTermAdapter::sb_pushline),
-    _static_wrap(&VTermAdapter::sb_popline),
+    _static_wrap(&VTermEmulator::damage),
+    _static_wrap(&VTermEmulator::moverect),
+    _static_wrap(&VTermEmulator::movecursor),
+    _static_wrap(&VTermEmulator::settermprop),
+    _static_wrap(&VTermEmulator::bell),
+    _static_wrap(&VTermEmulator::resize),
+    _static_wrap(&VTermEmulator::sb_pushline),
+    _static_wrap(&VTermEmulator::sb_popline),
 };
 
-namespace vtermadapt
+namespace vtermemu
 {
 
     // Input conversion.
@@ -298,10 +298,26 @@ namespace vtermadapt
             }
     }
 
-} // namespace vtermadapt
+} // namespace vtermemu
 
-VTermAdapter::VTermAdapter(TPoint size, GrowArray &aOutputBuffer, Mutex<TerminalSharedState> &aSharedState) noexcept :
-    outputBuffer(aOutputBuffer),
+TerminalEmulator &VTermEmulatorFactory::create(TPoint size, Writer &clientDataWriter, Mutex<TerminalSharedState> &sharedState) noexcept
+{
+    return *new VTermEmulator(size, clientDataWriter, sharedState);
+}
+
+TSpan<const EnvironmentVar> VTermEmulatorFactory::getCustomEnvironment() noexcept
+{
+    static constexpr EnvironmentVar customEnvironment[] =
+    {
+        {"TERM", "xterm-256color"},
+        {"COLORTERM", "truecolor"},
+    };
+
+    return customEnvironment;
+}
+
+VTermEmulator::VTermEmulator(TPoint size, Writer &aClientDataWriter, Mutex<TerminalSharedState> &aSharedState) noexcept :
+    clientDataWriter(aClientDataWriter),
     sharedState(aSharedState)
 {
     vt = vterm_new(max(size.y, 1), max(size.x, 1));
@@ -316,7 +332,7 @@ VTermAdapter::VTermAdapter(TPoint size, GrowArray &aOutputBuffer, Mutex<Terminal
     vterm_screen_set_damage_merge(vts, VTERM_DAMAGE_SCROLL);
     vterm_screen_reset(vts, true);
 
-    vterm_output_set_callback(vt, _static_wrap(&VTermAdapter::writeOutput), this);
+    vterm_output_set_callback(vt, _static_wrap(&VTermEmulator::writeOutput), this);
 
     // VTerm's cursor blinks by default, but it shouldn't.
     VTermValue val {0};
@@ -325,18 +341,12 @@ VTermAdapter::VTermAdapter(TPoint size, GrowArray &aOutputBuffer, Mutex<Terminal
     updateState();
 }
 
-VTermAdapter::~VTermAdapter()
+VTermEmulator::~VTermEmulator()
 {
     vterm_free(vt);
 }
 
-void VTermAdapter::childActions() noexcept
-{
-    setenv("TERM", "xterm-256color", 1);
-    setenv("COLORTERM", "truecolor", 1);
-}
-
-void VTermAdapter::updateState() noexcept
+void VTermEmulator::updateState() noexcept
 {
     sharedState.lock([&] (auto &sharedState) {
         if (localState.cursorChanged)
@@ -357,63 +367,72 @@ void VTermAdapter::updateState() noexcept
     });
 }
 
-void VTermAdapter::receive(TSpan<const char> buf) noexcept
+void VTermEmulator::handleEvent(const TerminalEvent &event) noexcept
 {
-    vterm_input_write(vt, buf.data(), buf.size());
+    using namespace vtermemu;
+    switch (event.type)
+    {
+        case TerminalEventType::KeyDown:
+            processKey(vt, event.keyDown);
+            break;
+
+        case TerminalEventType::Mouse:
+            if (mouseEnabled)
+                processMouse(vt, event.mouse.what, event.mouse.mouse);
+            else if (altScreenEnabled && event.mouse.what == evMouseWheel)
+                wheelToArrow(vt, event.mouse.mouse.wheel);
+            break;
+
+        case TerminalEventType::ClientDataRead:
+        {
+            auto &clientData = event.clientDataRead;
+            vterm_input_write(vt, clientData.data, clientData.size);
+            break;
+        }
+
+        case TerminalEventType::ViewportResize:
+        {
+            TPoint size = {event.viewportResize.x, event.viewportResize.y};
+            size.x = max(size.x, 1);
+            size.y = max(size.y, 1);
+            if (size != getSize())
+                vterm_set_size(vt, size.y, size.x);
+            break;
+        }
+
+        case TerminalEventType::FocusChange:
+            if (event.focusChange.focusEnabled)
+                vterm_state_focus_in(state);
+            else
+                vterm_state_focus_out(state);
+            break;
+
+        default:
+            break;
+    }
 }
 
-void VTermAdapter::flushDamage() noexcept
+void VTermEmulator::flushState() noexcept
 {
     vterm_screen_flush_damage(vts);
     updateState();
 }
 
-void VTermAdapter::handleKeyDown(const KeyDownEvent &keyDown) noexcept
-{
-    using namespace vtermadapt;
-    processKey(vt, keyDown);
-}
-
-void VTermAdapter::handleMouse(ushort what, const MouseEventType &mouse) noexcept
-{
-    using namespace vtermadapt;
-    if (mouseEnabled)
-        processMouse(vt, what, mouse);
-    else if (altScreenEnabled && what == evMouseWheel)
-        wheelToArrow(vt, mouse.wheel);
-}
-
-inline TPoint VTermAdapter::getSize() noexcept
+inline TPoint VTermEmulator::getSize() noexcept
 {
     TPoint size;
     vterm_get_size(vt, &size.y, &size.x);
     return size;
 }
 
-void VTermAdapter::setSize(TPoint size) noexcept
+void VTermEmulator::writeOutput(const char *data, size_t size)
 {
-    size.x = max(size.x, 1);
-    size.y = max(size.y, 1);
-    if (size != getSize())
-        vterm_set_size(vt, size.y, size.x);
+    clientDataWriter.write(data, size);
 }
 
-void VTermAdapter::setFocus(bool focus) noexcept
+int VTermEmulator::damage(VTermRect rect)
 {
-    if (focus)
-        vterm_state_focus_in(state);
-    else
-        vterm_state_focus_out(state);
-}
-
-void VTermAdapter::writeOutput(const char *data, size_t size)
-{
-    outputBuffer.push(data, size);
-}
-
-int VTermAdapter::damage(VTermRect rect)
-{
-    using namespace vtermadapt;
+    using namespace vtermemu;
     sharedState.lock([&] (auto &sharedState) {
         drawArea( vts, getSize(),
                   {rect.start_col, rect.start_row, rect.end_col, rect.end_row},
@@ -422,20 +441,20 @@ int VTermAdapter::damage(VTermRect rect)
     return true;
 }
 
-int VTermAdapter::moverect(VTermRect dest, VTermRect src)
+int VTermEmulator::moverect(VTermRect dest, VTermRect src)
 {
     dout << "moverect(" << dest << ", " << src << ")" << std::endl;
     return false;
 }
 
-int VTermAdapter::movecursor(VTermPos pos, VTermPos oldpos, int visible)
+int VTermEmulator::movecursor(VTermPos pos, VTermPos oldpos, int visible)
 {
     localState.cursorChanged = true;
     localState.cursorPos = {pos.col, pos.row};
     return true;
 }
 
-int VTermAdapter::settermprop(VTermProp prop, VTermValue *val)
+int VTermEmulator::settermprop(VTermProp prop, VTermValue *val)
 {
     dout << "settermprop(" << prop << ", " << val << ")" << std::endl;
     if (vterm_get_prop_type(prop) == VTERM_VALUETYPE_STRING)
@@ -478,29 +497,29 @@ int VTermAdapter::settermprop(VTermProp prop, VTermValue *val)
     return true;
 }
 
-int VTermAdapter::bell()
+int VTermEmulator::bell()
 {
     dout << "bell()" << std::endl;
     return false;
 }
 
-int VTermAdapter::resize(int rows, int cols)
+int VTermEmulator::resize(int rows, int cols)
 {
     return false;
 }
 
-int VTermAdapter::sb_pushline(int cols, const VTermScreenCell *cells)
+int VTermEmulator::sb_pushline(int cols, const VTermScreenCell *cells)
 {
     linestack.push(std::max(cols, 0), cells);
     return true;
 }
 
-int VTermAdapter::sb_popline(int cols, VTermScreenCell *cells)
+int VTermEmulator::sb_popline(int cols, VTermScreenCell *cells)
 {
     return linestack.pop(*this, std::max(cols, 0), cells);
 }
 
-inline VTermScreenCell VTermAdapter::getDefaultCell() const
+inline VTermScreenCell VTermEmulator::getDefaultCell() const
 {
     VTermScreenCell cell {};
     cell.width = 1;
@@ -508,7 +527,7 @@ inline VTermScreenCell VTermAdapter::getDefaultCell() const
     return cell;
 }
 
-void VTermAdapter::LineStack::push(size_t cols, const VTermScreenCell *src)
+void VTermEmulator::LineStack::push(size_t cols, const VTermScreenCell *src)
 {
     if (stack.size() < maxSize)
     {
@@ -518,7 +537,7 @@ void VTermAdapter::LineStack::push(size_t cols, const VTermScreenCell *src)
     }
 }
 
-bool VTermAdapter::LineStack::pop( const VTermAdapter &vterm,
+bool VTermEmulator::LineStack::pop( const VTermEmulator &vterm,
                                     size_t cols, VTermScreenCell *dst )
 {
     if (!stack.empty())

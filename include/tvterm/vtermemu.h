@@ -1,9 +1,8 @@
-#ifndef TVTERM_VTERMADAPT_H
-#define TVTERM_VTERMADAPT_H
+#ifndef TVTERM_VTERMEMU_H
+#define TVTERM_VTERMEMU_H
 
-#include <tvterm/termadapt.h>
+#include <tvterm/termemu.h>
 #include <utility>
-#include <vector>
 #include <memory>
 
 #include <vterm.h>
@@ -11,15 +10,36 @@
 namespace tvterm
 {
 
-class VTermAdapter final : public TerminalAdapter
+class VTermEmulatorFactory final : public TerminalEmulatorFactory
 {
+public:
+
+    TerminalEmulator &create( TPoint size, Writer &clientDataWriter,
+                              Mutex<TerminalSharedState> &sharedState ) noexcept override;
+
+    TSpan<const EnvironmentVar> getCustomEnvironment() noexcept override;
+
+};
+
+class VTermEmulator final : public TerminalEmulator
+{
+public:
+
+    VTermEmulator(TPoint size, Writer &aClientDataWriter, Mutex<TerminalSharedState> &aSharedState) noexcept;
+    ~VTermEmulator();
+
+    void handleEvent(const TerminalEvent &event) noexcept override;
+    void flushState() noexcept override;
+
+private:
+
     struct LineStack
     {
         enum { maxSize = 10000 };
 
         std::vector<std::pair<std::unique_ptr<const VTermScreenCell[]>, size_t>> stack;
         void push(size_t cols, const VTermScreenCell *cells);
-        bool pop(const VTermAdapter &vterm, size_t cols, VTermScreenCell *cells);
+        bool pop(const VTermEmulator &vterm, size_t cols, VTermScreenCell *cells);
         TSpan<const VTermScreenCell> top() const;
     };
 
@@ -36,7 +56,7 @@ class VTermAdapter final : public TerminalAdapter
     struct VTerm *vt;
     struct VTermState *state;
     struct VTermScreen *vts;
-    GrowArray &outputBuffer;
+    Writer &clientDataWriter;
     Mutex<TerminalSharedState> &sharedState;
     GrowArray strFragBuf;
     LineStack linestack;
@@ -59,29 +79,9 @@ class VTermAdapter final : public TerminalAdapter
 
     VTermScreenCell getDefaultCell() const;
     TPoint getSize() noexcept;
-
-    void receive(TSpan<const char> buf) noexcept override;
-    void flushDamage() noexcept override;
-    void setSize(TPoint size) noexcept override;
-    void setFocus(bool focus) noexcept override;
-    void handleKeyDown(const KeyDownEvent &keyDown) noexcept override;
-    void handleMouse(ushort what, const MouseEventType &mouse) noexcept override;
-
-public:
-
-    VTermAdapter(TPoint size, GrowArray &aOutputBuffer, Mutex<TerminalSharedState> &aSharedState) noexcept;
-    ~VTermAdapter();
-
-    static TerminalAdapter &create(TPoint size, GrowArray &aOutputBuffer, Mutex<TerminalSharedState> &aSharedState) noexcept;
-    static void childActions() noexcept;
 };
 
-inline TerminalAdapter &VTermAdapter::create(TPoint size, GrowArray &aOutputBuffer, Mutex<TerminalSharedState> &aSharedState) noexcept
-{
-    return *new VTermAdapter(size, aOutputBuffer, aSharedState);
-}
-
-inline TSpan<const VTermScreenCell> VTermAdapter::LineStack::top() const
+inline TSpan<const VTermScreenCell> VTermEmulator::LineStack::top() const
 {
     auto &pair = stack.back();
     return {pair.first.get(), pair.second};
@@ -89,4 +89,4 @@ inline TSpan<const VTermScreenCell> VTermAdapter::LineStack::top() const
 
 } // namespace tvterm
 
-#endif // TVTERM_VTERMADAPT_H
+#endif // TVTERM_VTERMEMU_H

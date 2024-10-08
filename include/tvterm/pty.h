@@ -21,7 +21,13 @@ struct PtyDescriptor
     }
 };
 
-PtyDescriptor createPty( TPoint size, void (&doAsChild)(),
+struct EnvironmentVar
+{
+    const char *name;
+    const char *value;
+};
+
+PtyDescriptor createPty( TPoint size, TSpan<const EnvironmentVar> &environment,
                          void (&onError)(const char *reason) ) noexcept;
 
 class PtyProcess

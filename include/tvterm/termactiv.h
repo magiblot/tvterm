@@ -5,7 +5,7 @@
 #include <tvision/tv.h>
 
 #include <tvterm/asyncio.h>
-#include <tvterm/termadapt.h>
+#include <tvterm/termemu.h>
 #include <tvterm/pty.h>
 #include <atomic>
 #include <memory>
@@ -15,6 +15,18 @@ namespace tvterm
 {
 
 class ThreadPool;
+
+class GrowArrayWriter : public Writer
+{
+public:
+
+    GrowArray buffer;
+
+    void write(const char *data, size_t size) noexcept override
+    {
+        buffer.push(data, size);
+    }
+};
 
 class TerminalActivity final : private AsyncIOClient
 {
@@ -26,17 +38,17 @@ class TerminalActivity final : private AsyncIOClient
 
     PtyProcess pty;
     AsyncIO async;
-    GrowArray outputBuffer;
+    GrowArrayWriter clientDataWriter;
     Mutex<TerminalSharedState> sharedState;
 
-    // This must be initialized after 'outputBuffer' and 'sharedState'.
-    TerminalAdapter &terminal;
+    // This must be initialized after 'clientDataWriter' and 'sharedState'.
+    TerminalEmulator &terminal;
 
     std::atomic<bool> updated {false};
     std::atomic<bool> closed {false};
 
     TerminalActivity( TPoint size,
-                      TerminalAdapterFactory &,
+                      TerminalEmulatorFactory &,
                       PtyDescriptor, ThreadPool & ) noexcept;
     ~TerminalActivity();
 
@@ -65,8 +77,7 @@ public:
 
     // The lifetime of 'threadPool' must exceed that of the returned TerminalActivity.
     static TerminalActivity *create( TPoint size,
-                                     TerminalAdapterFactory &createTerminal,
-                                     void (&childActions)(),
+                                     TerminalEmulatorFactory &createTerminal,
                                      void (&onError)(const char *reason),
                                      ThreadPool &threadPool ) noexcept;
     // Takes ownership over 'this'.

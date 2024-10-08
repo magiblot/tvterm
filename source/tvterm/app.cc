@@ -17,7 +17,7 @@
 #include "wnd.h"
 #include "apputil.h"
 #include <tvterm/termactiv.h>
-#include <tvterm/vtermadapt.h>
+#include <tvterm/vtermemu.h>
 
 #include <stdlib.h>
 #include <signal.h>
@@ -181,10 +181,9 @@ void TVTermApp::newTerm()
 {
     using namespace tvterm;
     TRect r = deskTop->getExtent();
+    VTermEmulatorFactory factory;
     auto *term = TerminalActivity::create( TerminalWindow::viewSize(r),
-                                           VTermAdapter::create,
-                                           VTermAdapter::childActions,
-                                           onTermError, threadPool );
+                                           factory, onTermError, threadPool );
     if (term)
         insertWindow(new TerminalWindow(r, *term));
 }

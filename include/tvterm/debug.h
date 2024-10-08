@@ -64,7 +64,7 @@ inline std::ostream& DebugCout::operator<<(const T &t)
 
 } // namespace tvterm
 
-#include <tvterm/termadapt.h>
+#include <tvterm/termemu.h>
 
 namespace tvterm
 {

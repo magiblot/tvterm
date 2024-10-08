@@ -25,7 +25,7 @@ namespace tvterm
 static struct termios createTermios() noexcept;
 static struct winsize createWinsize(TPoint size) noexcept;
 
-PtyDescriptor createPty( TPoint size, void (&doAsChild)(),
+PtyDescriptor createPty( TPoint size, TSpan<const EnvironmentVar> customEnvironment,
                          void (&onError)(const char *) ) noexcept
 {
     auto termios = createTermios();
@@ -40,7 +40,8 @@ PtyDescriptor createPty( TPoint size, void (&doAsChild)(),
         signal(SIGSTOP, SIG_DFL);
         signal(SIGCONT, SIG_DFL);
 
-        doAsChild();
+        for (const auto &envVar : customEnvironment)
+            setenv(envVar.name, envVar.value, 1);
 
         char *shell = getenv("SHELL");
         char *args[] = {shell, nullptr};

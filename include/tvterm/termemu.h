@@ -1,15 +1,14 @@
-#ifndef TVTERM_TERMADAPT_H
-#define TVTERM_TERMADAPT_H
+#ifndef TVTERM_TERMEMU_H
+#define TVTERM_TERMEMU_H
 
+#include <tvterm/pty.h>
 #include <tvterm/array.h>
 #include <tvterm/mutex.h>
 #include <vector>
 
 #define Uses_TDrawSurface
+#define Uses_TEvent
 #include <tvision/tv.h>
-
-struct KeyDownEvent;
-struct MouseEventType;
 
 namespace tvterm
 {
@@ -84,24 +83,84 @@ struct TerminalSharedState
     GrowArray title;
 };
 
-class TerminalAdapter
+enum class TerminalEventType
 {
-public:
-    virtual ~TerminalAdapter() {}
-
-    virtual void setSize(TPoint size) noexcept = 0;
-    virtual void setFocus(bool focus) noexcept = 0;
-    virtual void handleKeyDown(const KeyDownEvent &keyDown) noexcept = 0;
-    virtual void handleMouse(ushort what, const MouseEventType &mouse) noexcept = 0;
-    virtual void receive(TSpan<const char> data) noexcept = 0;
-    virtual void flushDamage() noexcept = 0;
+    KeyDown,
+    Mouse,
+    ClientDataRead,
+    ViewportResize,
+    FocusChange,
 };
 
-// Function returning a new-allocated TerminalAdapter.
-// Both 'outputBuffer' and 'sharedState' are non-owning references and
-// they exceed the lifetime of the returned TerminalAdapter.
-using TerminalAdapterFactory = TerminalAdapter &(TPoint size, GrowArray &outputBuffer, Mutex<TerminalSharedState> &sharedState);
+struct MouseEvent
+{
+    ushort what;
+    MouseEventType mouse;
+};
+
+struct ClientDataReadEvent
+{
+    const char *data;
+    size_t size;
+};
+
+struct ViewportResizeEvent
+{
+    int x, y;
+};
+
+struct FocusChangeEvent
+{
+    bool focusEnabled;
+};
+
+struct TerminalEvent
+{
+    TerminalEventType type;
+    union
+    {
+        ::KeyDownEvent keyDown;
+        MouseEvent mouse;
+        ClientDataReadEvent clientDataRead;
+        ViewportResizeEvent viewportResize;
+        FocusChangeEvent focusChange;
+    };
+};
+
+class TerminalEmulator
+{
+public:
+
+    virtual ~TerminalEmulator() = default;
+
+    virtual void handleEvent(const TerminalEvent &event) noexcept = 0;
+    virtual void flushState() noexcept = 0;
+};
+
+class Writer
+{
+public:
+
+    virtual void write(const char *data, size_t size) noexcept = 0;
+};
+
+class TerminalEmulatorFactory
+{
+public:
+
+    // Function returning a new-allocated TerminalEmulator.
+    // Both 'clientDataWriter' and 'sharedState' are non-owning references and
+    // they exceed the lifetime of the returned TerminalEmulator.
+    virtual TerminalEmulator &create( TPoint size,
+                                      Writer &clientDataWriter,
+                                      Mutex<TerminalSharedState> &sharedState ) noexcept = 0;
+
+    // Returns environment variables that the TerminalEmulator requires the
+    // client process to have.
+    // The lifetime of the returned value must not be shorter than that of 'this'.
+    virtual TSpan<const EnvironmentVar> getCustomEnvironment() noexcept = 0;
+};
 
 } // namespace tvterm
 
-#endif // TVTERM_TERMADAPT_H
+#endif // TVTERM_TERMEMU_H
