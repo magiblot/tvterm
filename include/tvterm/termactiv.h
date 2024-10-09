@@ -22,9 +22,9 @@ public:
 
     GrowArray buffer;
 
-    void write(const char *data, size_t size) noexcept override
+    void write(TSpan<const char> data) noexcept override
     {
-        buffer.push(data, size);
+        buffer.push(&data[0], data.size());
     }
 };
 
@@ -39,9 +39,9 @@ class TerminalActivity final : private AsyncIOClient
     PtyProcess pty;
     AsyncIO async;
     GrowArrayWriter clientDataWriter;
-    Mutex<TerminalSharedState> sharedState;
+    Mutex<TerminalState> terminalState;
 
-    // This must be initialized after 'clientDataWriter' and 'sharedState'.
+    // This must be initialized after 'clientDataWriter' and 'terminalState'.
     TerminalEmulator &terminal;
 
     std::atomic<bool> updated {false};
@@ -92,7 +92,7 @@ public:
 
     template <class Func>
     // This method locks a mutex, so reentrance will lead to a deadlock.
-    // * 'func' takes a 'TerminalSharedState &' by parameter.
+    // * 'func' takes a 'TerminalState &' by parameter.
     auto getState(Func &&func);
 
 };
@@ -110,7 +110,7 @@ inline bool TerminalActivity::isClosed() const noexcept
 template <class Func>
 inline auto TerminalActivity::getState(Func &&func)
 {
-    return sharedState.lock(static_cast<Func &&>(func));
+    return terminalState.lock(static_cast<Func &&>(func));
 }
 
 } // namespace tvterm

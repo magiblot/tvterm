@@ -12,7 +12,7 @@ namespace tvterm
 
 class TerminalView;
 class TerminalActivity;
-struct TerminalSharedState;
+struct TerminalState;
 
 struct BasicTerminalWindowAppConstants
 {
@@ -36,7 +36,7 @@ class BasicTerminalWindow : public TWindow
 
     void checkChanges() noexcept;
     void resizeTitle(size_t);
-    bool updateTitle(TerminalActivity &, TerminalSharedState &state) noexcept;
+    bool updateTitle(TerminalActivity &, TerminalState &state) noexcept;
 
 protected:
 

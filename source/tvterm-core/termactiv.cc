@@ -13,7 +13,7 @@ inline TerminalActivity::TerminalActivity( TPoint size,
                                            ThreadPool &threadPool ) noexcept :
     pty(ptyDescriptor),
     async(*this, pty.getMaster()),
-    terminal(terminalEmulatorFactory.create(size, clientDataWriter, sharedState))
+    terminal(terminalEmulatorFactory.create(size, clientDataWriter))
 {
     threadPool.run([&, ownership = std::unique_ptr<TerminalActivity>(this)] () noexcept {
         async.run();
@@ -91,7 +91,9 @@ bool TerminalActivity::onWaitFinish(bool isError, bool isTimeout) noexcept
                 break;
             }
             case wsFlush:
-                terminal.flushState();
+                terminalState.lock([&] (auto &state) {
+                    terminal.updateState(state);
+                });
                 checkSize();
                 updated = true;
                 TEvent::putNothing();
@@ -125,7 +127,9 @@ void TerminalActivity::checkSize() noexcept
 
         if (isClosed())
         {
-            terminal.flushState();
+            terminalState.lock([&] (auto &state) {
+                terminal.updateState(state);
+            });
             updated = true;
             TEvent::putNothing();
         }

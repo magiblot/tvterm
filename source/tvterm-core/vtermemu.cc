@@ -213,38 +213,28 @@ namespace vtermemu
         }
     }
 
-    static void drawArea( VTermScreen *vts, TPoint termSize, TRect area,
-                          TerminalSurface &surface )
+    static void drawLine( TerminalSurface &surface, VTermScreen *vtScreen,
+                          int y, int begin, int end )
+    // Pre: the area must be within bounds.
     {
-        TRect r;
-        if (surface.size != termSize)
+        dout << "drawLine(" << y << ", " << begin << ", " << end << ")" << std::endl;
+        TSpan<TScreenCell> cells(&surface.at(y, 0), surface.size.x);
+        for (int x = begin; x < end; ++x)
         {
-            surface.resize(termSize);
-            r = {{0, 0}, termSize};
+            VTermScreenCell cell;
+            if (vterm_screen_get_cell(vtScreen, {y, x}, &cell))
+                convCell(cells, x, cell);
+            else
+                cells[x] = {};
         }
-        else
-            r = area.intersect({{0, 0}, termSize});
-        if (0 <= r.a.x && r.a.x < r.b.x && 0 <= r.a.y && r.a.y < r.b.y)
-            for (int y = r.a.y; y < r.b.y; ++y)
-            {
-                TSpan<TScreenCell> cells(&surface.at(y, 0), surface.size.x);
-                for (int x = r.a.x; x < r.b.x; ++x)
-                {
-                    VTermScreenCell cell;
-                    if (vterm_screen_get_cell(vts, {y, x}, &cell))
-                        convCell(cells, x, cell);
-                    else
-                        cells[x] = {};
-                }
-                surface.setDamage(y, r.a.x, r.b.x);
-            }
+        surface.addDamageAtRow(y, begin, end);
     }
 
 } // namespace vtermemu
 
-TerminalEmulator &VTermEmulatorFactory::create(TPoint size, Writer &clientDataWriter, Mutex<TerminalSharedState> &sharedState) noexcept
+TerminalEmulator &VTermEmulatorFactory::create(TPoint size, Writer &clientDataWriter) noexcept
 {
-    return *new VTermEmulator(size, clientDataWriter, sharedState);
+    return *new VTermEmulator(size, clientDataWriter);
 }
 
 TSpan<const EnvironmentVar> VTermEmulatorFactory::getCustomEnvironment() noexcept
@@ -258,55 +248,36 @@ TSpan<const EnvironmentVar> VTermEmulatorFactory::getCustomEnvironment() noexcep
     return customEnvironment;
 }
 
-VTermEmulator::VTermEmulator(TPoint size, Writer &aClientDataWriter, Mutex<TerminalSharedState> &aSharedState) noexcept :
-    clientDataWriter(aClientDataWriter),
-    sharedState(aSharedState)
+VTermEmulator::VTermEmulator(TPoint size, Writer &aClientDataWriter) noexcept :
+    clientDataWriter(aClientDataWriter)
 {
-    vt = vterm_new(max(size.y, 1), max(size.x, 1));
+    // VTerm requires size to be at least 1.
+    size.x = max(size.x, 1);
+    size.y = max(size.y, 1);
+    damageByRow.resize(size.y);
+
+    vt = vterm_new(size.y, size.x);
     vterm_set_utf8(vt, 1);
 
-    state = vterm_obtain_state(vt);
-    vterm_state_reset(state, true);
+    vtState = vterm_obtain_state(vt);
+    vterm_state_reset(vtState, true);
 
-    vts = vterm_obtain_screen(vt);
-    vterm_screen_enable_altscreen(vts, true);
-    vterm_screen_set_callbacks(vts, &callbacks, this);
-    vterm_screen_set_damage_merge(vts, VTERM_DAMAGE_SCROLL);
-    vterm_screen_reset(vts, true);
+    vtScreen = vterm_obtain_screen(vt);
+    vterm_screen_enable_altscreen(vtScreen, true);
+    vterm_screen_set_callbacks(vtScreen, &callbacks, this);
+    vterm_screen_set_damage_merge(vtScreen, VTERM_DAMAGE_SCROLL);
+    vterm_screen_reset(vtScreen, true);
 
     vterm_output_set_callback(vt, _static_wrap(&VTermEmulator::writeOutput), this);
 
     // VTerm's cursor blinks by default, but it shouldn't.
     VTermValue val {0};
-    vterm_state_set_termprop(state, VTERM_PROP_CURSORBLINK, &val);
-
-    updateState();
+    vterm_state_set_termprop(vtState, VTERM_PROP_CURSORBLINK, &val);
 }
 
 VTermEmulator::~VTermEmulator()
 {
     vterm_free(vt);
-}
-
-void VTermEmulator::updateState() noexcept
-{
-    sharedState.lock([&] (auto &sharedState) {
-        if (localState.cursorChanged)
-        {
-            sharedState.cursorChanged = true;
-            sharedState.cursorPos = localState.cursorPos;
-            sharedState.cursorVisible = localState.cursorVisible;
-            sharedState.cursorBlink = localState.cursorBlink;
-            localState.cursorChanged = false;
-        }
-
-        if (localState.titleChanged)
-        {
-            sharedState.titleChanged = true;
-            sharedState.title = std::move(localState.title);
-            localState.titleChanged = false;
-        }
-    });
 }
 
 void VTermEmulator::handleEvent(const TerminalEvent &event) noexcept
@@ -319,9 +290,9 @@ void VTermEmulator::handleEvent(const TerminalEvent &event) noexcept
             break;
 
         case TerminalEventType::Mouse:
-            if (mouseEnabled)
+            if (localState.mouseEnabled)
                 processMouse(vt, event.mouse.what, event.mouse.mouse);
-            else if (altScreenEnabled && event.mouse.what == evMouseWheel)
+            else if (localState.altScreenEnabled && event.mouse.what == evMouseWheel)
                 wheelToArrow(vt, event.mouse.mouse.wheel);
             break;
 
@@ -335,18 +306,15 @@ void VTermEmulator::handleEvent(const TerminalEvent &event) noexcept
         case TerminalEventType::ViewportResize:
         {
             TPoint size = {event.viewportResize.x, event.viewportResize.y};
-            size.x = max(size.x, 1);
-            size.y = max(size.y, 1);
-            if (size != getSize())
-                vterm_set_size(vt, size.y, size.x);
+            setSize(size);
             break;
         }
 
         case TerminalEventType::FocusChange:
             if (event.focusChange.focusEnabled)
-                vterm_state_focus_in(state);
+                vterm_state_focus_in(vtState);
             else
-                vterm_state_focus_out(state);
+                vterm_state_focus_out(vtState);
             break;
 
         default:
@@ -354,32 +322,78 @@ void VTermEmulator::handleEvent(const TerminalEvent &event) noexcept
     }
 }
 
-void VTermEmulator::flushState() noexcept
+void VTermEmulator::updateState(TerminalState &state) noexcept
 {
-    vterm_screen_flush_damage(vts);
-    updateState();
+    vterm_screen_flush_damage(vtScreen);
+    drawDamagedArea(state.surface);
+    if (localState.cursorChanged)
+    {
+        localState.cursorChanged = false;
+        state.cursorChanged = true;
+        state.cursorPos = localState.cursorPos;
+        state.cursorVisible = localState.cursorVisible;
+        state.cursorBlink = localState.cursorBlink;
+    }
+    if (localState.titleChanged)
+    {
+        localState.titleChanged = false;
+        state.titleChanged = true;
+        state.title = std::move(localState.title);
+    }
 }
 
-inline TPoint VTermEmulator::getSize() noexcept
+TPoint VTermEmulator::getSize() noexcept
 {
     TPoint size;
     vterm_get_size(vt, &size.y, &size.x);
     return size;
 }
 
+void VTermEmulator::setSize(TPoint size) noexcept
+{
+    size.x = max(size.x, 1);
+    size.y = max(size.y, 1);
+
+    if (size != getSize())
+    {
+        vterm_set_size(vt, size.y, size.x);
+        damageByRow.resize(0);
+        damageByRow.resize(size.y);
+    }
+}
+
+void VTermEmulator::drawDamagedArea(TerminalSurface &surface) noexcept
+{
+    using namespace vtermemu;
+    TPoint size = getSize();
+    if (surface.size != size)
+        surface.resize(size);
+    for (int y = 0; y < size.y; ++y)
+    {
+        auto &damage = damageByRow[y];
+        int begin = max(damage.begin, 0);
+        int end = min(damage.end, size.x);
+        if (begin < end)
+            drawLine(surface, vtScreen, y, begin, end);
+        damage = {};
+    }
+}
+
 void VTermEmulator::writeOutput(const char *data, size_t size)
 {
-    clientDataWriter.write(data, size);
+    clientDataWriter.write({data, size});
 }
 
 int VTermEmulator::damage(VTermRect rect)
 {
-    using namespace vtermemu;
-    sharedState.lock([&] (auto &sharedState) {
-        drawArea( vts, getSize(),
-                  {rect.start_col, rect.start_row, rect.end_col, rect.end_row},
-                  sharedState.surface );
-    });
+    rect.start_row = min(max(rect.start_row, 0), damageByRow.size());
+    rect.end_row = min(max(rect.end_row, 0), damageByRow.size());
+    for (int y = rect.start_row; y < rect.end_row; ++y)
+    {
+        auto &damage = damageByRow[y];
+        damage.begin = min(rect.start_col, damage.begin);
+        damage.end = max(rect.end_col, damage.end);
+    }
     return true;
 }
 
@@ -428,10 +442,10 @@ int VTermEmulator::settermprop(VTermProp prop, VTermValue *val)
             localState.cursorBlink = val->boolean;
             break;
         case VTERM_PROP_MOUSE:
-            mouseEnabled = val->boolean;
+            localState.mouseEnabled = val->boolean;
             break;
         case VTERM_PROP_ALTSCREEN:
-            altScreenEnabled = val->boolean;
+            localState.altScreenEnabled = val->boolean;
             break;
         default:
             return false;
@@ -465,7 +479,7 @@ inline VTermScreenCell VTermEmulator::getDefaultCell() const
 {
     VTermScreenCell cell {};
     cell.width = 1;
-    vterm_state_get_default_colors(state, &cell.fg, &cell.bg);
+    vterm_state_get_default_colors(vtState, &cell.fg, &cell.bg);
     return cell;
 }
 

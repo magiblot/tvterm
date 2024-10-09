@@ -21,20 +21,24 @@ class TerminalSurface : private TDrawSurface
 
 public:
 
-    struct Range { int begin, end; };
+    struct RowDamage
+    {
+        int begin {INT_MAX};
+        int end {INT_MIN};
+    };
 
     using TDrawSurface::size;
 
     void resize(TPoint aSize);
     void clearDamage();
     using TDrawSurface::at;
-    Range &damageAt(size_t y);
-    const Range &damageAt(size_t y) const;
-    void setDamage(size_t y, int begin, int end);
+    RowDamage &damageAtRow(size_t y);
+    const RowDamage &damageAtRow(size_t y) const;
+    void addDamageAtRow(size_t y, int begin, int end);
 
 private:
 
-    std::vector<Range> rowDamage;
+    std::vector<RowDamage> damageByRow;
 };
 
 inline void TerminalSurface::resize(TPoint aSize)
@@ -49,36 +53,38 @@ inline void TerminalSurface::resize(TPoint aSize)
 
 inline void TerminalSurface::clearDamage()
 {
-    rowDamage.resize(0);
-    rowDamage.resize(max(0, size.y), {INT_MAX, INT_MIN});
+    damageByRow.resize(0);
+    damageByRow.resize(max(0, size.y));
 }
 
-inline TerminalSurface::Range &TerminalSurface::damageAt(size_t y)
+inline TerminalSurface::RowDamage &TerminalSurface::damageAtRow(size_t y)
 {
-    return rowDamage[y];
+    return damageByRow[y];
 }
 
-inline const TerminalSurface::Range &TerminalSurface::damageAt(size_t y) const
+inline const TerminalSurface::RowDamage &TerminalSurface::damageAtRow(size_t y) const
 {
-    return rowDamage[y];
+    return damageByRow[y];
 }
 
-inline void TerminalSurface::setDamage(size_t y, int begin, int end)
+inline void TerminalSurface::addDamageAtRow(size_t y, int begin, int end)
 {
-    auto &damage = damageAt(y);
+    auto &damage = damageAtRow(y);
     damage = {
         min(begin, damage.begin),
         max(end, damage.end),
     };
 }
 
-struct TerminalSharedState
+struct TerminalState
 {
     TerminalSurface surface;
+
     bool cursorChanged {false};
     TPoint cursorPos {0, 0};
     bool cursorVisible {false};
     bool cursorBlink {false};
+
     bool titleChanged {false};
     GrowArray title;
 };
@@ -134,14 +140,14 @@ public:
     virtual ~TerminalEmulator() = default;
 
     virtual void handleEvent(const TerminalEvent &event) noexcept = 0;
-    virtual void flushState() noexcept = 0;
+    virtual void updateState(TerminalState &state) noexcept = 0;
 };
 
 class Writer
 {
 public:
 
-    virtual void write(const char *data, size_t size) noexcept = 0;
+    virtual void write(TSpan<const char> data) noexcept = 0;
 };
 
 class TerminalEmulatorFactory
@@ -149,11 +155,10 @@ class TerminalEmulatorFactory
 public:
 
     // Function returning a new-allocated TerminalEmulator.
-    // Both 'clientDataWriter' and 'sharedState' are non-owning references and
-    // they exceed the lifetime of the returned TerminalEmulator.
+    // 'clientDataWriter' is a non-owning reference and exceeds the lifetime
+    // of the returned TerminalEmulator.
     virtual TerminalEmulator &create( TPoint size,
-                                      Writer &clientDataWriter,
-                                      Mutex<TerminalSharedState> &sharedState ) noexcept = 0;
+                                      Writer &clientDataWriter ) noexcept = 0;
 
     // Returns environment variables that the TerminalEmulator requires the
     // client process to have.

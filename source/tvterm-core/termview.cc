@@ -79,7 +79,7 @@ void TerminalView::draw()
     });
 }
 
-void TerminalView::updateCursor(TerminalSharedState &state) noexcept
+void TerminalView::updateCursor(TerminalState &state) noexcept
 {
     if (state.cursorChanged)
     {
@@ -90,9 +90,9 @@ void TerminalView::updateCursor(TerminalSharedState &state) noexcept
     }
 }
 
-static TerminalSurface::Range rangeToCopy(int y, const TRect &r, const TerminalSurface &surface, bool reuseBuffer)
+static TerminalSurface::RowDamage rangeToCopy(int y, const TRect &r, const TerminalSurface &surface, bool reuseBuffer)
 {
-    auto &damage = surface.damageAt(y);
+    auto &damage = surface.damageAtRow(y);
     if (reuseBuffer)
         return {
             max(r.a.x, damage.begin),

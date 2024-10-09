@@ -56,7 +56,7 @@ void BasicTerminalWindow::checkChanges() noexcept
 }
 
 bool BasicTerminalWindow::updateTitle( TerminalActivity &term,
-                                  TerminalSharedState &state ) noexcept
+                                       TerminalState &state ) noexcept
 {
     if (state.titleChanged)
     {

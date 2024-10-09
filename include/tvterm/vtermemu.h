@@ -14,9 +14,7 @@ class VTermEmulatorFactory final : public TerminalEmulatorFactory
 {
 public:
 
-    TerminalEmulator &create( TPoint size, Writer &clientDataWriter,
-                              Mutex<TerminalSharedState> &sharedState ) noexcept override;
-
+    TerminalEmulator &create(TPoint size, Writer &clientDataWriter) noexcept override;
     TSpan<const EnvironmentVar> getCustomEnvironment() noexcept override;
 
 };
@@ -25,11 +23,11 @@ class VTermEmulator final : public TerminalEmulator
 {
 public:
 
-    VTermEmulator(TPoint size, Writer &aClientDataWriter, Mutex<TerminalSharedState> &aSharedState) noexcept;
+    VTermEmulator(TPoint size, Writer &aClientDataWriter) noexcept;
     ~VTermEmulator();
 
     void handleEvent(const TerminalEvent &event) noexcept override;
-    void flushState() noexcept override;
+    void updateState(TerminalState &state) noexcept override;
 
 private:
 
@@ -49,24 +47,29 @@ private:
         TPoint cursorPos {0, 0};
         bool cursorVisible {false};
         bool cursorBlink {false};
+
         bool titleChanged {false};
         GrowArray title;
+
+        bool mouseEnabled {false};
+        bool altScreenEnabled {false};
     };
 
     struct VTerm *vt;
-    struct VTermState *state;
-    struct VTermScreen *vts;
+    struct VTermState *vtState;
+    struct VTermScreen *vtScreen;
     Writer &clientDataWriter;
-    Mutex<TerminalSharedState> &sharedState;
+    std::vector<TerminalSurface::RowDamage> damageByRow;
     GrowArray strFragBuf;
     LineStack linestack;
     LocalState localState;
-    bool mouseEnabled {false};
-    bool altScreenEnabled {false};
 
     static const VTermScreenCallbacks callbacks;
 
-    void updateState() noexcept;
+    TPoint getSize() noexcept;
+    void setSize(TPoint size) noexcept;
+    void drawDamagedArea(TerminalSurface &surface) noexcept;
+
     void writeOutput(const char *data, size_t size);
     int damage(VTermRect rect);
     int moverect(VTermRect dest, VTermRect src);
@@ -78,7 +81,6 @@ private:
     int sb_popline(int cols, VTermScreenCell *cells);
 
     VTermScreenCell getDefaultCell() const;
-    TPoint getSize() noexcept;
 };
 
 inline TSpan<const VTermScreenCell> VTermEmulator::LineStack::top() const

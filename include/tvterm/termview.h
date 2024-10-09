@@ -12,14 +12,14 @@ namespace tvterm
 
 class TerminalActivity;
 class TerminalSurface;
-struct TerminalSharedState;
+struct TerminalState;
 
 class TerminalView : public TView
 {
     bool ownerBufferChanged {false};
 
     void handleMouse(ushort what, MouseEventType mouse) noexcept;
-    void updateCursor(TerminalSharedState &state) noexcept;
+    void updateCursor(TerminalState &state) noexcept;
     void updateDisplay(TerminalSurface &surface) noexcept;
     bool canReuseOwnerBuffer() noexcept;
 
