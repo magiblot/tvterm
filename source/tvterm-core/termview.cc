@@ -28,25 +28,46 @@ void TerminalView::changeBounds(const TRect& bounds)
     setBounds(bounds);
     ownerBufferChanged = true;
     drawView();
-    term.sendResize(size);
+
+    TerminalEvent termEvent;
+    termEvent.type = TerminalEventType::ViewportResize;
+    termEvent.viewportResize = {size.x, size.y};
+    term.sendEvent(termEvent);
 }
 
 void TerminalView::setState(ushort aState, bool enable)
 {
-    if (aState == sfExposed && enable != !!(state & sfExposed))
+    if (aState == sfExposed && enable != getState(sfExposed))
         ownerBufferChanged = true;
+
     TView::setState(aState, enable);
+
+    if (aState == sfFocused)
+    {
+        TerminalEvent termEvent;
+        termEvent.type = TerminalEventType::FocusChange;
+        termEvent.focusChange = {enable};
+        term.sendEvent(termEvent);
+    }
 }
 
 void TerminalView::handleEvent(TEvent &ev)
 {
     TView::handleEvent(ev);
+
     switch (ev.what)
     {
         case evKeyDown:
-            term.sendKeyDown(ev.keyDown);
+        {
+            TerminalEvent termEvent;
+            termEvent.type = TerminalEventType::KeyDown;
+            termEvent.keyDown = ev.keyDown;
+            term.sendEvent(termEvent);
+
             clearEvent(ev);
             break;
+        }
+
         case evMouseDown:
             do {
                 handleMouse(ev.what, ev.mouse);
@@ -55,6 +76,7 @@ void TerminalView::handleEvent(TEvent &ev)
                 handleMouse(ev.what, ev.mouse);
             clearEvent(ev);
             break;
+
         case evMouseWheel:
         case evMouseMove:
         case evMouseAuto:
@@ -68,7 +90,11 @@ void TerminalView::handleEvent(TEvent &ev)
 void TerminalView::handleMouse(ushort what, MouseEventType mouse) noexcept
 {
     mouse.where = makeLocal(mouse.where);
-    term.sendMouse(what, mouse);
+
+    TerminalEvent termEvent;
+    termEvent.type = TerminalEventType::Mouse;
+    termEvent.mouse = {what, mouse};
+    term.sendEvent(termEvent);
 }
 
 void TerminalView::draw()

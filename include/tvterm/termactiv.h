@@ -85,10 +85,7 @@ public:
 
     bool hasChanged() noexcept;
     bool isClosed() const noexcept;
-    void sendResize(TPoint aSize) noexcept;
-    void sendFocus(bool focus) noexcept;
-    void sendKeyDown(const KeyDownEvent &keyDown) noexcept;
-    void sendMouse(ushort what, const MouseEventType &mouse) noexcept;
+    void sendEvent(const TerminalEvent &event) noexcept;
 
     template <class Func>
     // This method locks a mutex, so reentrance will lead to a deadlock.

@@ -138,48 +138,22 @@ void TerminalActivity::checkSize() noexcept
     }
 }
 
-void TerminalActivity::sendResize(TPoint aSize) noexcept
+void TerminalActivity::sendEvent(const TerminalEvent &event) noexcept
 {
-    async.dispatch([this, aSize] {
-        viewportSizeChanged = true;
-        viewportSize = aSize;
-        checkSize();
-    });
-}
+    async.dispatch([this, event] {
+        switch (event.type)
+        {
+            case TerminalEventType::ViewportResize:
+                viewportSizeChanged = true;
+                viewportSize = {event.viewportResize.x, event.viewportResize.y};
+                checkSize();
+                break;
 
-void TerminalActivity::sendFocus(bool focus) noexcept
-{
-    async.dispatch([this, focus] {
-        TerminalEvent event;
-        event.type = TerminalEventType::FocusChange;
-        event.focusChange = {focus};
-        terminal.handleEvent(event);
-
-        async.writeOutput(std::move(clientDataWriter.buffer));
-    });
-}
-
-void TerminalActivity::sendKeyDown(const KeyDownEvent &keyDown) noexcept
-{
-    async.dispatch([this, keyDown] {
-        TerminalEvent event;
-        event.type = TerminalEventType::KeyDown;
-        event.keyDown = keyDown;
-        terminal.handleEvent(event);
-
-        async.writeOutput(std::move(clientDataWriter.buffer));
-    });
-}
-
-void TerminalActivity::sendMouse(ushort what, const MouseEventType &mouse) noexcept
-{
-    async.dispatch([this, what, mouse] {
-        TerminalEvent event;
-        event.type = TerminalEventType::Mouse;
-        event.mouse = {what, mouse};
-        terminal.handleEvent(event);
-
-        async.writeOutput(std::move(clientDataWriter.buffer));
+            default:
+                terminal.handleEvent(event);
+                async.writeOutput(std::move(clientDataWriter.buffer));
+                break;
+        }
     });
 }
 
