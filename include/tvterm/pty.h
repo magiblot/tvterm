@@ -27,7 +27,7 @@ struct EnvironmentVar
     const char *value;
 };
 
-PtyDescriptor createPty( TPoint size, TSpan<const EnvironmentVar> &environment,
+PtyDescriptor createPty( TPoint size, TSpan<const EnvironmentVar> environment,
                          void (&onError)(const char *reason) ) noexcept;
 
 class PtyProcess
