@@ -1,7 +1,7 @@
 #include <tvterm/termactiv.h>
 #include <tvterm/threadpool.h>
 
-#define Uses_TEvent
+#define Uses_TEventQueue
 #include <tvision/tv.h>
 
 namespace tvterm
@@ -96,7 +96,7 @@ bool TerminalActivity::onWaitFinish(bool isError, bool isTimeout) noexcept
                 });
                 checkSize();
                 updated = true;
-                TEvent::putNothing();
+                TEventQueue::wakeUp();
                 if (!isError)
                 {
                     async.writeOutput(std::move(clientDataWriter.buffer));
@@ -108,7 +108,7 @@ bool TerminalActivity::onWaitFinish(bool isError, bool isTimeout) noexcept
             case wsEOF:
                 updated = true;
                 closed = true;
-                TEvent::putNothing();
+                TEventQueue::wakeUp();
                 return false;
         }
     }
@@ -131,7 +131,7 @@ void TerminalActivity::checkSize() noexcept
                 terminal.updateState(state);
             });
             updated = true;
-            TEvent::putNothing();
+            TEventQueue::wakeUp();
         }
         else
             pty.setSize(viewportSize);
