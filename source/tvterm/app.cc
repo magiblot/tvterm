@@ -169,7 +169,7 @@ void TVTermApp::idle()
         else
             disableCommands(tileCmds);
     }
-    message(this, evBroadcast, cmIdle, nullptr);
+    message(this, evBroadcast, cmCheckTerminalUpdates, nullptr);
 }
 
 static void onTermError(const char *reason)

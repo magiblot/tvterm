@@ -2,6 +2,7 @@
 #define TVTERM_WND_H
 
 #include <tvterm/termwnd.h>
+#include <tvterm/consts.h>
 
 class TerminalWindow : public tvterm::BasicTerminalWindow
 {
@@ -9,7 +10,7 @@ class TerminalWindow : public tvterm::BasicTerminalWindow
 
 public:
 
-    static const tvterm::BasicTerminalWindowAppConstants appConsts;
+    static const tvterm::TVTermConstants appConsts;
 
     TerminalWindow(const TRect &bounds, tvterm::TerminalActivity &aTerm) noexcept;
 

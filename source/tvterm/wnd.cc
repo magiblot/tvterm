@@ -4,9 +4,10 @@
 #define Uses_TEvent
 #include <tvision/tv.h>
 
-const tvterm::BasicTerminalWindowAppConstants TerminalWindow::appConsts =
+const tvterm::TVTermConstants TerminalWindow::appConsts =
 {
-    cmIdle,
+    cmCheckTerminalUpdates,
+    cmTerminalUpdated,
     cmGrabInput,
     cmReleaseInput,
     hcInputGrabbed,

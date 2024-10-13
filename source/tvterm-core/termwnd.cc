@@ -7,6 +7,7 @@
 #include <tvterm/termview.h>
 #include <tvterm/termframe.h>
 #include <tvterm/termactiv.h>
+#include <tvterm/consts.h>
 
 namespace tvterm
 {
@@ -18,16 +19,16 @@ TFrame *BasicTerminalWindow::initFrame(TRect bounds)
 
 BasicTerminalWindow::BasicTerminalWindow( const TRect &bounds,
                                           TerminalActivity &aTerm,
-                                          const BasicTerminalWindowAppConstants &aAppConsts
+                                          const TVTermConstants &aConsts
                                         ) noexcept :
     TWindowInit(&BasicTerminalWindow::initFrame),
     TWindow(bounds, nullptr, wnNoNumber),
-    appConsts(aAppConsts)
+    consts(aConsts)
 {
     options |= ofTileable;
     eventMask |= evBroadcast;
     setState(sfShadow, False);
-    view = new TerminalView(getExtent().grow(-1, -1), aTerm);
+    view = new TerminalView(getExtent().grow(-1, -1), aTerm, aConsts);
     insert(view);
 }
 
@@ -37,22 +38,10 @@ void BasicTerminalWindow::shutDown()
     TWindow::shutDown();
 }
 
-void BasicTerminalWindow::checkChanges() noexcept
+void BasicTerminalWindow::checkChanges(TerminalUpdatedMsg &upd) noexcept
 {
-    if (view)
-    {
-        auto &term = view->term;
-        bool titleChanged = false;
-        if (term.hasChanged())
-        {
-            view->drawView();
-            titleChanged = term.getState([&] (auto &state) {
-                return updateTitle(term, state);
-            });
-        }
-        if (frame && titleChanged)
-            frame->drawView();
-    }
+    if (frame && updateTitle(upd.view.term, upd.state))
+        frame->drawView();
 }
 
 bool BasicTerminalWindow::updateTitle( TerminalActivity &term,
@@ -87,9 +76,9 @@ bool BasicTerminalWindow::isClosed() const noexcept
 
 const char *BasicTerminalWindow::getTitle(short)
 {
-    TStringView tail = isClosed()                          ? " (Disconnected)"
-                     : helpCtx == appConsts.hcInputGrabbed ? " (Input Grab)"
-                                                           : "";
+    TStringView tail = isClosed()                       ? " (Disconnected)"
+                     : helpCtx == consts.hcInputGrabbed ? " (Input Grab)"
+                                                        : "";
     TStringView text = {termTitle.data(), termTitle.size()};
     if (size_t length = text.size() + tail.size())
     {
@@ -108,14 +97,14 @@ void BasicTerminalWindow::handleEvent(TEvent &ev)
     switch (ev.what)
     {
         case evCommand:
-            if ( ev.message.command == appConsts.cmGrabInput &&
-                 helpCtx != appConsts.hcInputGrabbed && owner )
+            if ( ev.message.command == consts.cmGrabInput &&
+                 helpCtx != consts.hcInputGrabbed && owner )
             {
                 owner->execView(this);
                 clearEvent(ev);
             }
             else if ( (ev.message.command == cmClose ||
-                       ev.message.command == appConsts.cmReleaseInput) &&
+                       ev.message.command == consts.cmReleaseInput) &&
                       (state & sfModal) )
             {
                 endModal(cmCancel);
@@ -123,11 +112,11 @@ void BasicTerminalWindow::handleEvent(TEvent &ev)
                     putEvent(ev);
                 clearEvent(ev);
             }
+            else if ( ev.message.command == consts.cmTerminalUpdated &&
+                      ev.message.infoPtr )
+                checkChanges(*(TerminalUpdatedMsg *) ev.message.infoPtr);
             break;
-        case evBroadcast:
-            if (ev.message.command == appConsts.cmIdle)
-                checkChanges();
-            break;
+
         case evMouseDown:
             if ((state & sfModal) && !mouseInView(ev.mouse.where))
             {
@@ -147,7 +136,7 @@ void BasicTerminalWindow::setState(ushort aState, Boolean enable)
     TWindow::setState(aState, enable);
     if (aState == sfActive)
     {
-        for (ushort cmd : appConsts.focusedCmds())
+        for (ushort cmd : consts.focusedCmds())
             if (enable)
                 enableCommand(cmd);
             else
@@ -158,7 +147,7 @@ void BasicTerminalWindow::setState(ushort aState, Boolean enable)
 ushort BasicTerminalWindow::execute()
 {
     auto lastHelpCtx = helpCtx;
-    helpCtx = appConsts.hcInputGrabbed;
+    helpCtx = consts.hcInputGrabbed;
     if (frame) frame->drawView();
 
     TWindow::execute();

@@ -13,9 +13,11 @@ namespace tvterm
 class TerminalActivity;
 class TerminalSurface;
 struct TerminalState;
+struct TVTermConstants;
 
 class TerminalView : public TView
 {
+    const TVTermConstants &consts;
     bool ownerBufferChanged {false};
 
     void handleMouse(ushort what, MouseEventType mouse) noexcept;
@@ -27,8 +29,10 @@ public:
 
     TerminalActivity &term;
 
-    // Takes ownership over 'aTerm'.
-    TerminalView(const TRect &bounds, TerminalActivity &aTerm) noexcept;
+    // Takes ownership over 'term'.
+    // The lifetime of 'consts' must exceed that of 'this'.
+    TerminalView( const TRect &bounds, TerminalActivity &term,
+                  const TVTermConstants &consts ) noexcept;
     ~TerminalView();
 
     void changeBounds(const TRect& bounds) override;

@@ -13,30 +13,19 @@ namespace tvterm
 class TerminalView;
 class TerminalActivity;
 struct TerminalState;
-
-struct BasicTerminalWindowAppConstants
-{
-    ushort cmIdle;
-    ushort cmGrabInput;
-    ushort cmReleaseInput;
-    ushort hcInputGrabbed;
-
-    TSpan<const ushort> focusedCmds() const
-    {
-        return {&cmGrabInput, size_t(&cmReleaseInput + 1 - &cmGrabInput)};
-    }
-};
+struct TVTermConstants;
+struct TerminalUpdatedMsg;
 
 class BasicTerminalWindow : public TWindow
 {
-    const BasicTerminalWindowAppConstants &appConsts;
+    const TVTermConstants &consts;
     TerminalView *view {nullptr};
     size_t titleCapacity {0};
     GrowArray termTitle;
 
-    void checkChanges() noexcept;
+    void checkChanges(TerminalUpdatedMsg &) noexcept;
     void resizeTitle(size_t);
-    bool updateTitle(TerminalActivity &, TerminalState &state) noexcept;
+    bool updateTitle(TerminalActivity &, TerminalState &) noexcept;
 
 protected:
 
@@ -46,11 +35,11 @@ public:
 
     static TFrame *initFrame(TRect);
 
-    // Takes ownership over 'aTerm'.
-    // The lifetime of 'aAppConsts' must exceed that of 'this'.
+    // Takes ownership over 'term'.
+    // The lifetime of 'consts' must exceed that of 'this'.
     // Assumes 'this->TWindow::frame' to be a BasicTerminalFrame.
-    BasicTerminalWindow( const TRect &bounds, TerminalActivity &aTerm,
-                         const BasicTerminalWindowAppConstants &aAppConsts ) noexcept;
+    BasicTerminalWindow( const TRect &bounds, TerminalActivity &term,
+                         const TVTermConstants &consts ) noexcept;
 
     void shutDown() override;
     const char *getTitle(short) override;

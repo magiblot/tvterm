@@ -1,5 +1,6 @@
 #include <tvterm/termview.h>
 #include <tvterm/termactiv.h>
+#include <tvterm/consts.h>
 
 #define Uses_TKeys
 #define Uses_TEvent
@@ -8,8 +9,10 @@
 namespace tvterm
 {
 
-TerminalView::TerminalView(const TRect &bounds, TerminalActivity &aTerm) noexcept :
+TerminalView::TerminalView( const TRect &bounds, TerminalActivity &aTerm,
+                            const TVTermConstants &aConsts ) noexcept :
     TView(bounds),
+    consts(aConsts),
     term(aTerm)
 {
     growMode = gfGrowHiX | gfGrowHiY;
@@ -57,6 +60,12 @@ void TerminalView::handleEvent(TEvent &ev)
 
     switch (ev.what)
     {
+        case evBroadcast:
+            if ( ev.message.command == consts.cmCheckTerminalUpdates &&
+                 term.hasChanged() )
+                drawView();
+            break;
+
         case evKeyDown:
         {
             TerminalEvent termEvent;
@@ -102,6 +111,9 @@ void TerminalView::draw()
     term.getState([&] (auto &state) {
         updateCursor(state);
         updateDisplay(state.surface);
+
+        TerminalUpdatedMsg upd {*this, state};
+        message(owner, evCommand, consts.cmTerminalUpdated, &upd);
     });
 }
 
