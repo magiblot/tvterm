@@ -10,7 +10,7 @@ struct MouseEventType;
 namespace tvterm
 {
 
-class TerminalActivity;
+class TerminalController;
 class TerminalSurface;
 struct TerminalState;
 struct TVTermConstants;
@@ -27,11 +27,11 @@ class TerminalView : public TView
 
 public:
 
-    TerminalActivity &term;
+    TerminalController &termCtrl;
 
-    // Takes ownership over 'term'.
+    // Takes ownership over 'termCtrl'.
     // The lifetime of 'consts' must exceed that of 'this'.
-    TerminalView( const TRect &bounds, TerminalActivity &term,
+    TerminalView( const TRect &bounds, TerminalController &termCtrl,
                   const TVTermConstants &consts ) noexcept;
     ~TerminalView();
 

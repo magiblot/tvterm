@@ -12,13 +12,13 @@ public:
 
     static const tvterm::TVTermConstants appConsts;
 
-    TerminalWindow(const TRect &bounds, tvterm::TerminalActivity &aTerm) noexcept;
+    TerminalWindow(const TRect &bounds, tvterm::TerminalController &aTerm) noexcept;
 
     void handleEvent(TEvent &ev) override;
 };
 
 inline TerminalWindow::TerminalWindow( const TRect &bounds,
-                                       tvterm::TerminalActivity &aTerm ) noexcept :
+                                       tvterm::TerminalController &aTerm ) noexcept :
     TWindowInit(&initFrame),
     super(bounds, aTerm, appConsts)
 {

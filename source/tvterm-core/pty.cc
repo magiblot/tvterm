@@ -1,4 +1,3 @@
-#include <tvterm/debug.h>
 #include <tvterm/pty.h>
 
 #define Uses_TPoint
@@ -46,60 +45,83 @@ PtyDescriptor createPty( TPoint size, TSpan<const EnvironmentVar> customEnvironm
         char *shell = getenv("SHELL");
         char *args[] = {shell, nullptr};
         execvp(shell, args);
-        dout << "Child: cannot exec " << (shell ? shell : "(nil)") << ": " << strerror(errno)
-             << std::endl << std::flush;
-        // Don't clean up resources, because we didn't initiate them
-        // (e.g. terminal state).
-        _exit(1);
+
+        setbuf(stderr, nullptr); // Ensure 'stderr' is unbuffered.
+        fprintf(
+            stderr,
+            "\x1B[1;31m" // Color attributes: bold and red.
+            "Error: Failed to execute the program specified by the environment variable SHELL ('%s'): %s"
+            "\x1B[0m", // Reset color attributes.
+            (shell ? shell : ""),
+            strerror(errno)
+        );
+
+        // Exit the subprocess without cleaning up resources.
+        _Exit(EXIT_FAILURE);
     }
     else if (child_pid == -1)
     {
-        char str[256];
-        snprintf(str, sizeof(str), "forkpty failed: %s", strerror(errno));
+        char *str = fmtStr("forkpty failed: %s", strerror(errno));
         onError(str);
-        return {-1, -1};
+        delete[] str;
+        return {-1};
     }
-    return {master_fd, child_pid};
+    return {master_fd};
 }
 
-PtyProcess::~PtyProcess()
+bool PtyMaster::readFromClient(TSpan<char> data, size_t &bytesRead) noexcept
 {
-    close(master_fd);
-    kill(child_pid, SIGINT);
-    kill(child_pid, SIGTERM);
-}
-
-TPoint PtyProcess::getSize() const noexcept
-{
-    struct winsize w;
-    if (ioctl(master_fd, TIOCGWINSZ, &w) != -1)
-        return {w.ws_col, w.ws_row};
-    return {};
-}
-
-void PtyProcess::setSize(TPoint size) const noexcept
-{
-    if (size != getSize())
+    bytesRead = 0;
+    if (data.size() > 1)
     {
-        struct winsize w = {};
-        w.ws_row = size.y;
-        w.ws_col = size.x;
-        int rr = ioctl(master_fd, TIOCSWINSZ, &w);
-        (void) rr;
+        ssize_t r = read(fd, &data[0], 1);
+        if (r < 0)
+            return false;
+        else if (r > 0)
+        {
+            bytesRead += r;
+            int availableBytes = 0;
+            if ( ioctl(fd, FIONREAD, &availableBytes) != -1 &&
+                 availableBytes > 0 )
+            {
+                r = read(fd, &data[1], min(availableBytes, data.size() - 1));
+                if (r < 0)
+                    return false;
+                bytesRead += r;
+            }
+        }
     }
+    return true;
 }
 
-ssize_t PtyProcess::read(TSpan<char> buf) const noexcept
+bool PtyMaster::writeToClient(TSpan<const char> data) noexcept
 {
-    return ::read(master_fd, buf.data(), buf.size());
+    size_t written = 0;
+    while (written < data.size())
+    {
+        ssize_t r = write(fd, &data[written], data.size() - written);
+        if (r < 0)
+            return false;
+        written += r;
+    }
+    return true;
 }
 
-ssize_t PtyProcess::write(TSpan<const char> buf) const noexcept
+void PtyMaster::resizeClient(TPoint size) noexcept
 {
-    return ::write(master_fd, buf.data(), buf.size());
+    struct winsize w = {};
+    w.ws_row = size.y;
+    w.ws_col = size.x;
+    int rr = ioctl(fd, TIOCSWINSZ, &w);
+    (void) rr;
 }
 
-struct winsize createWinsize(TPoint size) noexcept
+void PtyMaster::disconnect() noexcept
+{
+    close(fd);
+}
+
+static struct winsize createWinsize(TPoint size) noexcept
 {
     struct winsize w = {};
     w.ws_row = size.y;
@@ -107,7 +129,7 @@ struct winsize createWinsize(TPoint size) noexcept
     return w;
 }
 
-struct termios createTermios() noexcept
+static struct termios createTermios() noexcept
 {
     // Initialization like in pangoterm.
     struct termios t = {};

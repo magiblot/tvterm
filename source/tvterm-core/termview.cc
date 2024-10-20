@@ -1,5 +1,5 @@
 #include <tvterm/termview.h>
-#include <tvterm/termactiv.h>
+#include <tvterm/termctrl.h>
 #include <tvterm/consts.h>
 
 #define Uses_TKeys
@@ -9,11 +9,11 @@
 namespace tvterm
 {
 
-TerminalView::TerminalView( const TRect &bounds, TerminalActivity &aTerm,
+TerminalView::TerminalView( const TRect &bounds, TerminalController &aTermCtrl,
                             const TVTermConstants &aConsts ) noexcept :
     TView(bounds),
     consts(aConsts),
-    term(aTerm)
+    termCtrl(aTermCtrl)
 {
     growMode = gfGrowHiX | gfGrowHiY;
     options |= ofSelectable | ofFirstClick;
@@ -23,7 +23,7 @@ TerminalView::TerminalView( const TRect &bounds, TerminalActivity &aTerm,
 
 TerminalView::~TerminalView()
 {
-    term.destroy();
+    termCtrl.shutDown();
 }
 
 void TerminalView::changeBounds(const TRect& bounds)
@@ -35,7 +35,7 @@ void TerminalView::changeBounds(const TRect& bounds)
     TerminalEvent termEvent;
     termEvent.type = TerminalEventType::ViewportResize;
     termEvent.viewportResize = {size.x, size.y};
-    term.sendEvent(termEvent);
+    termCtrl.sendEvent(termEvent);
 }
 
 void TerminalView::setState(ushort aState, bool enable)
@@ -50,7 +50,7 @@ void TerminalView::setState(ushort aState, bool enable)
         TerminalEvent termEvent;
         termEvent.type = TerminalEventType::FocusChange;
         termEvent.focusChange = {enable};
-        term.sendEvent(termEvent);
+        termCtrl.sendEvent(termEvent);
     }
 }
 
@@ -62,7 +62,7 @@ void TerminalView::handleEvent(TEvent &ev)
     {
         case evBroadcast:
             if ( ev.message.command == consts.cmCheckTerminalUpdates &&
-                 term.hasChanged() )
+                 termCtrl.stateHasBeenUpdated() )
                 drawView();
             break;
 
@@ -71,7 +71,7 @@ void TerminalView::handleEvent(TEvent &ev)
             TerminalEvent termEvent;
             termEvent.type = TerminalEventType::KeyDown;
             termEvent.keyDown = ev.keyDown;
-            term.sendEvent(termEvent);
+            termCtrl.sendEvent(termEvent);
 
             clearEvent(ev);
             break;
@@ -103,12 +103,12 @@ void TerminalView::handleMouse(ushort what, MouseEventType mouse) noexcept
     TerminalEvent termEvent;
     termEvent.type = TerminalEventType::Mouse;
     termEvent.mouse = {what, mouse};
-    term.sendEvent(termEvent);
+    termCtrl.sendEvent(termEvent);
 }
 
 void TerminalView::draw()
 {
-    term.getState([&] (auto &state) {
+    termCtrl.lockState([&] (auto &state) {
         updateCursor(state);
         updateDisplay(state.surface);
 

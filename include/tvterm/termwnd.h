@@ -11,7 +11,7 @@ namespace tvterm
 {
 
 class TerminalView;
-class TerminalActivity;
+class TerminalController;
 struct TerminalState;
 struct TVTermConstants;
 struct TerminalUpdatedMsg;
@@ -25,20 +25,20 @@ class BasicTerminalWindow : public TWindow
 
     void checkChanges(TerminalUpdatedMsg &) noexcept;
     void resizeTitle(size_t);
-    bool updateTitle(TerminalActivity &, TerminalState &) noexcept;
+    bool updateTitle(TerminalController &, TerminalState &) noexcept;
 
 protected:
 
-    bool isClosed() const noexcept;
+    bool isDisconnected() const noexcept;
 
 public:
 
     static TFrame *initFrame(TRect);
 
-    // Takes ownership over 'term'.
+    // Takes ownership over 'termCtrl'.
     // The lifetime of 'consts' must exceed that of 'this'.
     // Assumes 'this->TWindow::frame' to be a BasicTerminalFrame.
-    BasicTerminalWindow( const TRect &bounds, TerminalActivity &term,
+    BasicTerminalWindow( const TRect &bounds, TerminalController &termCtrl,
                          const TVTermConstants &consts ) noexcept;
 
     void shutDown() override;

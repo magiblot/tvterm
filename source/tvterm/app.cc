@@ -16,7 +16,7 @@
 #include "desk.h"
 #include "wnd.h"
 #include "apputil.h"
-#include <tvterm/termactiv.h>
+#include <tvterm/termctrl.h>
 #include <tvterm/vtermemu.h>
 
 #include <stdlib.h>
@@ -182,10 +182,10 @@ void TVTermApp::newTerm()
     using namespace tvterm;
     TRect r = deskTop->getExtent();
     VTermEmulatorFactory factory;
-    auto *term = TerminalActivity::create( TerminalWindow::viewSize(r),
-                                           factory, onTermError, threadPool );
-    if (term)
-        insertWindow(new TerminalWindow(r, *term));
+    auto *termCtrl = TerminalController::create( TerminalWindow::viewSize(r),
+                                                 factory, onTermError );
+    if (termCtrl)
+        insertWindow(new TerminalWindow(r, *termCtrl));
 }
 
 void TVTermApp::changeDir()

@@ -1,5 +1,4 @@
 #include <tvterm/termframe.h>
-#include <tvterm/termactiv.h>
 
 #define Uses_TRect
 #include <tvision/tv.h>

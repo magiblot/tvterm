@@ -1,7 +1,7 @@
 #ifndef TVTERM_PTY_H
 #define TVTERM_PTY_H
 
-#include <sys/types.h>
+#include <stddef.h>
 
 template <class T>
 class TSpan;
@@ -12,12 +12,11 @@ namespace tvterm
 
 struct PtyDescriptor
 {
-    int master_fd;
-    pid_t child_pid;
+    int fd;
 
     bool valid() const
     {
-        return master_fd != -1;
+        return fd != -1;
     }
 };
 
@@ -30,33 +29,23 @@ struct EnvironmentVar
 PtyDescriptor createPty( TPoint size, TSpan<const EnvironmentVar> environment,
                          void (&onError)(const char *reason) ) noexcept;
 
-class PtyProcess
+class PtyMaster
 {
-    int master_fd;
-    pid_t child_pid;
+    int fd;
 
 public:
 
-    PtyProcess(PtyDescriptor ptyDescriptor) noexcept;
-    ~PtyProcess();
+    PtyMaster(PtyDescriptor ptyDescriptor) noexcept;
 
-    int getMaster() const noexcept;
-    TPoint getSize() const noexcept;
-    void setSize(TPoint) const noexcept;
-    ssize_t read(TSpan<char>) const noexcept;
-    ssize_t write(TSpan<const char>) const noexcept;
-
+    bool readFromClient(TSpan<char> data, size_t &bytesRead) noexcept;
+    bool writeToClient(TSpan<const char> data) noexcept;
+    void resizeClient(TPoint size) noexcept;
+    void disconnect() noexcept;
 };
 
-inline PtyProcess::PtyProcess(PtyDescriptor ptyDescriptor) noexcept :
-    master_fd(ptyDescriptor.master_fd),
-    child_pid(ptyDescriptor.child_pid)
+inline PtyMaster::PtyMaster(PtyDescriptor ptyDescriptor) noexcept :
+    fd(ptyDescriptor.fd)
 {
-}
-
-inline int PtyProcess::getMaster() const noexcept
-{
-    return master_fd;
 }
 
 } // namespace tvterm

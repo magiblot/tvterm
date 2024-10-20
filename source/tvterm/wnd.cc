@@ -17,9 +17,9 @@ void TerminalWindow::handleEvent(TEvent &ev)
 {
 
     if ( ev.what == evBroadcast &&
-         ev.message.command == cmGetOpenTerms && !isClosed() )
+         ev.message.command == cmGetOpenTerms && !isDisconnected() )
         *(size_t *) ev.message.infoPtr += 1;
-    else if ( ev.what == evKeyDown && isClosed() &&
+    else if ( ev.what == evKeyDown && isDisconnected() &&
               !(state & (sfDragging | sfModal)) )
     {
         close();

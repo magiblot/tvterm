@@ -6,7 +6,7 @@
 #include <tvterm/termwnd.h>
 #include <tvterm/termview.h>
 #include <tvterm/termframe.h>
-#include <tvterm/termactiv.h>
+#include <tvterm/termctrl.h>
 #include <tvterm/consts.h>
 
 namespace tvterm
@@ -18,7 +18,7 @@ TFrame *BasicTerminalWindow::initFrame(TRect bounds)
 }
 
 BasicTerminalWindow::BasicTerminalWindow( const TRect &bounds,
-                                          TerminalActivity &aTerm,
+                                          TerminalController &termCtrl,
                                           const TVTermConstants &aConsts
                                         ) noexcept :
     TWindowInit(&BasicTerminalWindow::initFrame),
@@ -28,7 +28,7 @@ BasicTerminalWindow::BasicTerminalWindow( const TRect &bounds,
     options |= ofTileable;
     eventMask |= evBroadcast;
     setState(sfShadow, False);
-    view = new TerminalView(getExtent().grow(-1, -1), aTerm, aConsts);
+    view = new TerminalView(getExtent().grow(-1, -1), termCtrl, aConsts);
     insert(view);
 }
 
@@ -40,11 +40,11 @@ void BasicTerminalWindow::shutDown()
 
 void BasicTerminalWindow::checkChanges(TerminalUpdatedMsg &upd) noexcept
 {
-    if (frame && updateTitle(upd.view.term, upd.state))
+    if (frame && updateTitle(upd.view.termCtrl, upd.state))
         frame->drawView();
 }
 
-bool BasicTerminalWindow::updateTitle( TerminalActivity &term,
+bool BasicTerminalWindow::updateTitle( TerminalController &term,
                                        TerminalState &state ) noexcept
 {
     if (state.titleChanged)
@@ -55,7 +55,7 @@ bool BasicTerminalWindow::updateTitle( TerminalActivity &term,
     }
     // When the terminal is closed for the first time, 'state.title' does not
     // change but we still need to redraw the title.
-    return term.isClosed();
+    return term.clientIsDisconnected();
 }
 
 void BasicTerminalWindow::resizeTitle(size_t aCapacity)
@@ -69,14 +69,14 @@ void BasicTerminalWindow::resizeTitle(size_t aCapacity)
     }
 }
 
-bool BasicTerminalWindow::isClosed() const noexcept
+bool BasicTerminalWindow::isDisconnected() const noexcept
 {
-    return !view || view->term.isClosed();
+    return !view || view->termCtrl.clientIsDisconnected();
 }
 
 const char *BasicTerminalWindow::getTitle(short)
 {
-    TStringView tail = isClosed()                       ? " (Disconnected)"
+    TStringView tail = isDisconnected()                 ? " (Disconnected)"
                      : helpCtx == consts.hcInputGrabbed ? " (Input Grab)"
                                                         : "";
     TStringView text = {termTitle.data(), termTitle.size()};
@@ -126,7 +126,7 @@ void BasicTerminalWindow::handleEvent(TEvent &ev)
             }
             break;
     }
-    if (isClosed() && (state & sfModal))
+    if (isDisconnected() && (state & sfModal))
         endModal(cmCancel);
     TWindow::handleEvent(ev);
 }

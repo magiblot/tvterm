@@ -20,7 +20,6 @@ In order to build `tvterm` you must have the following things installed:
 * A compiler supporting C++14.
 * `tvterm`'s dependencies:
     * `libvterm` (e.g. `libvterm-dev` in Ubuntu).
-    * Asio 1.12.0 or newer (e.g. `libasio-dev` in Ubuntu).
 * [Turbo Vision](https://github.com/magiblot/tvision#build-environment)'s dependencies:
     * `libncursesw` (Unix only) (e.g. `libncursesw5-dev` in Ubuntu).
     * `libgpm` (optional, Linux only) (e.g. `libgpm-dev` in Ubuntu).
