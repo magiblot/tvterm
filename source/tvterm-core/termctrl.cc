@@ -112,7 +112,6 @@ TerminalController *TerminalController::create( TPoint size,
 
 void TerminalController::shutDown() noexcept
 {
-    ptyMaster.disconnect();
     {
         std::lock_guard<std::mutex> lock(eventLoop.mutex);
         eventLoop.terminated = true;
@@ -155,8 +154,10 @@ void TerminalController::TerminalEventLoop::runWriterLoop() noexcept
             condVar.wait_until(lock, currentTimeout);
 
             if (terminated)
-                // The PTY master has already been closed, there's nothing to write.
+            {
+                ctrl.ptyMaster.disconnect();
                 break;
+            }
 
             processEvents();
             updateState(updated);

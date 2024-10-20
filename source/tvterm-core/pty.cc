@@ -8,6 +8,7 @@
 #include <signal.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
+#include <sys/wait.h>
 #include <termios.h>
 
 #if __has_include(<pty.h>)
@@ -29,9 +30,9 @@ PtyDescriptor createPty( TPoint size, TSpan<const EnvironmentVar> customEnvironm
 {
     auto termios = createTermios();
     auto winsize = createWinsize(size);
-    int master_fd;
-    pid_t child_pid = forkpty(&master_fd, nullptr, &termios, &winsize);
-    if (child_pid == 0)
+    int masterFd;
+    pid_t clientPid = forkpty(&masterFd, nullptr, &termios, &winsize);
+    if (clientPid == 0)
     {
         // Use the default ISIG signal handlers.
         signal(SIGINT,  SIG_DFL);
@@ -59,14 +60,14 @@ PtyDescriptor createPty( TPoint size, TSpan<const EnvironmentVar> customEnvironm
         // Exit the subprocess without cleaning up resources.
         _Exit(EXIT_FAILURE);
     }
-    else if (child_pid == -1)
+    else if (clientPid == -1)
     {
         char *str = fmtStr("forkpty failed: %s", strerror(errno));
         onError(str);
         delete[] str;
         return {-1};
     }
-    return {master_fd};
+    return {masterFd, clientPid};
 }
 
 bool PtyMaster::readFromClient(TSpan<char> data, size_t &bytesRead) noexcept
@@ -74,17 +75,17 @@ bool PtyMaster::readFromClient(TSpan<char> data, size_t &bytesRead) noexcept
     bytesRead = 0;
     if (data.size() > 1)
     {
-        ssize_t r = read(fd, &data[0], 1);
+        ssize_t r = read(masterFd, &data[0], 1);
         if (r < 0)
             return false;
         else if (r > 0)
         {
             bytesRead += r;
             int availableBytes = 0;
-            if ( ioctl(fd, FIONREAD, &availableBytes) != -1 &&
+            if ( ioctl(masterFd, FIONREAD, &availableBytes) != -1 &&
                  availableBytes > 0 )
             {
-                r = read(fd, &data[1], min(availableBytes, data.size() - 1));
+                r = read(masterFd, &data[1], min(availableBytes, data.size() - 1));
                 if (r < 0)
                     return false;
                 bytesRead += r;
@@ -99,7 +100,7 @@ bool PtyMaster::writeToClient(TSpan<const char> data) noexcept
     size_t written = 0;
     while (written < data.size())
     {
-        ssize_t r = write(fd, &data[written], data.size() - written);
+        ssize_t r = write(masterFd, &data[written], data.size() - written);
         if (r < 0)
             return false;
         written += r;
@@ -112,13 +113,23 @@ void PtyMaster::resizeClient(TPoint size) noexcept
     struct winsize w = {};
     w.ws_row = size.y;
     w.ws_col = size.x;
-    int rr = ioctl(fd, TIOCSWINSZ, &w);
+    int rr = ioctl(masterFd, TIOCSWINSZ, &w);
     (void) rr;
 }
 
 void PtyMaster::disconnect() noexcept
 {
-    close(fd);
+    close(masterFd);
+    // Send a SIGHUP, then a SIGKILL after a while if the process is not yet
+    // terminated, like most terminal emulators do.
+    kill(clientPid, SIGHUP);
+    sleep(1);
+    if (waitpid(clientPid, nullptr, WNOHANG) != clientPid)
+    {
+        kill(clientPid, SIGKILL);
+        while( waitpid(clientPid, nullptr, 0) != clientPid &&
+               errno == EINTR );
+    }
 }
 
 static struct winsize createWinsize(TPoint size) noexcept

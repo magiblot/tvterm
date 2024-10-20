@@ -3,6 +3,8 @@
 
 #include <stddef.h>
 
+#include <sys/types.h>
+
 template <class T>
 class TSpan;
 class TPoint;
@@ -12,11 +14,12 @@ namespace tvterm
 
 struct PtyDescriptor
 {
-    int fd;
+    int masterFd;
+    pid_t clientPid;
 
     bool valid() const
     {
-        return fd != -1;
+        return masterFd != -1;
     }
 };
 
@@ -31,7 +34,8 @@ PtyDescriptor createPty( TPoint size, TSpan<const EnvironmentVar> environment,
 
 class PtyMaster
 {
-    int fd;
+    int masterFd;
+    pid_t clientPid;
 
 public:
 
@@ -44,7 +48,8 @@ public:
 };
 
 inline PtyMaster::PtyMaster(PtyDescriptor ptyDescriptor) noexcept :
-    fd(ptyDescriptor.fd)
+    masterFd(ptyDescriptor.masterFd),
+    clientPid(ptyDescriptor.clientPid)
 {
 }
 
