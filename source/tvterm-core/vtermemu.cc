@@ -61,7 +61,7 @@ namespace vtermemu
     static constexpr struct { ushort tv; VTermModifier vt; } modifiers[] =
     {
         { kbShift,      VTERM_MOD_SHIFT },
-        { kbAltShift,   VTERM_MOD_ALT   },
+        { kbLeftAlt,    VTERM_MOD_ALT   },
         { kbCtrlShift,  VTERM_MOD_CTRL  },
     };
 
