@@ -50,8 +50,8 @@ struct TerminalController::TerminalEventLoop
     bool terminated {false};
 
     // Used for sending events from the main thread to the TerminalEventLoop's
-    // threads.
-    std::queue<TerminalEvent> eventQueue;
+    // threads. Has its own mutex to avoid blocking the main thread for long.
+    Mutex<std::queue<TerminalEvent>> eventQueue;
 
     // Used for waking up the WriterLoop a short time after data was received
     // by the ReaderLoop thread.
@@ -138,10 +138,9 @@ TerminalController::~TerminalController()
 
 void TerminalController::sendEvent(const TerminalEvent &event) noexcept
 {
-    {
-        std::lock_guard<std::mutex> lock(eventLoop.mutex);
-        eventLoop.eventQueue.push(event);
-    }
+    eventLoop.eventQueue.lock([&] (auto &eventQueue) {
+        eventQueue.push(event);
+    });
     eventLoop.condVar.notify_one();
 }
 
@@ -222,10 +221,21 @@ void TerminalController::TerminalEventLoop::runReaderLoop() noexcept
 void TerminalController::TerminalEventLoop::processEvents() noexcept
 // Pre: 'this->mutex' is locked.
 {
-    while (!eventQueue.empty())
+    while (true)
     {
-        TerminalEvent event = eventQueue.front();
-        eventQueue.pop();
+        bool hasEvent;
+        TerminalEvent event;
+
+        eventQueue.lock([&] (auto &eventQueue) {
+            if ((hasEvent = !eventQueue.empty()))
+            {
+                event = eventQueue.front();
+                eventQueue.pop();
+            }
+        });
+
+        if (!hasEvent)
+            break;
 
         switch (event.type)
         {
