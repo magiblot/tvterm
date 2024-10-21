@@ -48,8 +48,6 @@ TVTermApp::TVTermApp() :
                &TVTermApp::initDeskTop
              )
 {
-    // We do not need automatic wake-ups. Terminals do it when necessary.
-    eventTimeoutMs = -1;
     disableCommands(tileCmds);
     for (ushort cmd : TerminalWindow::appConsts.focusedCmds())
         disableCommand(cmd);
