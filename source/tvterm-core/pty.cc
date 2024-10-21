@@ -26,8 +26,9 @@ namespace tvterm
 static struct termios createTermios() noexcept;
 static struct winsize createWinsize(TPoint size) noexcept;
 
-PtyDescriptor createPty( TPoint size, TSpan<const EnvironmentVar> customEnvironment,
-                         void (&onError)(const char *) ) noexcept
+bool createPty( PtyDescriptor &ptyDescriptor, TPoint size,
+                TSpan<const EnvironmentVar> customEnvironment,
+                void (&onError)(const char *) ) noexcept
 {
     auto termios = createTermios();
     auto winsize = createWinsize(size);
@@ -66,9 +67,10 @@ PtyDescriptor createPty( TPoint size, TSpan<const EnvironmentVar> customEnvironm
         char *str = fmtStr("forkpty failed: %s", strerror(errno));
         onError(str);
         delete[] str;
-        return {-1};
+        return false;
     }
-    return {masterFd, clientPid};
+    ptyDescriptor = {masterFd, clientPid};
+    return true;
 }
 
 bool PtyMaster::readFromClient(TSpan<char> data, size_t &bytesRead) noexcept
