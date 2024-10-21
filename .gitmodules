@@ -3,4 +3,4 @@
 	url = https://github.com/magiblot/tvision.git
 [submodule "deps/vterm/libvterm"]
 	path = deps/vterm/libvterm
-	url = https://github.com/neovim/libvterm.git
+	url = https://github.com/magiblot/libvterm.git
