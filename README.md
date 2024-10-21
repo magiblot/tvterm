@@ -14,20 +14,23 @@ The original location of this project is https://github.com/magiblot/tvterm.
 
 # Building
 
-In order to build `tvterm` you must have the following things installed:
+First of all, you should clone this repository along its submodules with the `--recursive` option of `git clone` (or run `git submodule init && git submodule update` if you have already cloned it).
+
+Then, make sure the following dependencies are installed:
 
 * CMake.
 * A compiler supporting C++14.
-* `tvterm`'s dependencies:
-    * `libvterm` (e.g. `libvterm-dev` in Ubuntu).
+* `libvterm`:
+    * If you initialized the submodules, you can build `libvterm` as part of `tvterm`. Perl is needed for building `libvterm`.
+    * Otherwise, a system-provided `libvterm` (e.g. `libvterm-dev` in Ubuntu) can be used if enabling the CMake option `-DTVTERM_USE_SYSTEM_LIBVTERM=ON`.
 * [Turbo Vision](https://github.com/magiblot/tvision#build-environment)'s dependencies:
     * `libncursesw` (Unix only) (e.g. `libncursesw5-dev` in Ubuntu).
     * `libgpm` (optional, Linux only) (e.g. `libgpm-dev` in Ubuntu).
-* Turbo Vision itself. You may do this in two different ways:
-    * Use the `--recursive` option of `git clone` when cloning this repository (or run `git submodule init && git submodule update` if you have already cloned it). This way, Turbo Vision will be built along `tvterm`.
-    * Clone [Turbo Vision](https://github.com/magiblot/tvision) separately and follow its [build](https://github.com/magiblot/tvision#build-environment) and [install](https://github.com/magiblot/tvision#build-cmake) instructions. Make sure you don't use a version of Turbo Vision older than the one required by `tvterm` (specified in the [`tvision` submodule](https://github.com/magiblot/tvterm/tree/master/deps)). When building `tvterm`, enable the CMake option `-DTVTERM_USE_SYSTEM_TVISION=ON`.
+* Turbo Vision itself:
+    * If you initialized the submodules, you can build Turbo Vision as part of `tvterm`.
+    * Otherwise, clone [Turbo Vision](https://github.com/magiblot/tvision) separately and follow its [build](https://github.com/magiblot/tvision#build-environment) and [install](https://github.com/magiblot/tvision#build-cmake) instructions. Make sure you don't use a version of Turbo Vision older than the one required by `tvterm` (specified in the [`tvision` submodule](https://github.com/magiblot/tvterm/tree/master/deps)). When building `tvterm`, enable the CMake option `-DTVTERM_USE_SYSTEM_TVISION=ON`.
 
-Then build `tvterm` with CMake:
+`tvterm` can be built with the following commands:
 
 ```sh
 cmake . -B ./build -DCMAKE_BUILD_TYPE=Release && # Could also be 'Debug', 'MinSizeRel' or 'RelWithDebInfo'.

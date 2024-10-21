@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.5)
 
 option(TVTERM_BUILD_APP "Build main application" ON)
 option(TVTERM_USE_SYSTEM_TVISION "Use system-wide Turbo Vision instead of the submodule" OFF)
+option(TVTERM_USE_SYSTEM_LIBVTERM "Use system-wide libvterm instead of the submodule" OFF)
 option(TVTERM_OPTIMIZE_BUILD "Enable build optimizations (Unity Build, Precompiled Headers)" ON)
 
 project(tvterm)
@@ -47,10 +48,9 @@ target_include_directories(tvterm-core PRIVATE
 target_link_libraries(tvterm-core PUBLIC
     tvision
     vterm
-    util
-    pthread
+    ${SYSTEM_DEPS}
 )
-install(TARGETS vterm util pthread EXPORT tvterm-config)
+install(TARGETS vterm ${SYSTEM_DEPS} EXPORT tvterm-config)
 install(TARGETS tvterm-core
     EXPORT tvterm-config
     ARCHIVE DESTINATION lib
