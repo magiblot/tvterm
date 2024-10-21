@@ -213,6 +213,37 @@ static struct termios createTermios() noexcept
 namespace tvterm
 {
 
+// The OS-provided ConPTY is usually outdated. Try to overcome this by loading
+// a user-installed conpty.dll.
+
+struct ConPtyApi
+{
+    decltype(::CreatePseudoConsole) *CreatePseudoConsole;
+    decltype(::ResizePseudoConsole) *ResizePseudoConsole;
+    decltype(::ClosePseudoConsole) *ClosePseudoConsole;
+
+    void init() noexcept;
+} conPty;
+
+void ConPtyApi::init() noexcept
+{
+    if (HMODULE mod = LoadLibraryA("conpty.dll"))
+    {
+        CreatePseudoConsole =
+            (decltype(CreatePseudoConsole)) GetProcAddress(mod, "CreatePseudoConsole");
+        ResizePseudoConsole =
+            (decltype(ResizePseudoConsole)) GetProcAddress(mod, "ResizePseudoConsole");
+        ClosePseudoConsole =
+            (decltype(ClosePseudoConsole)) GetProcAddress(mod, "ClosePseudoConsole");
+    }
+    else
+    {
+        CreatePseudoConsole = &::CreatePseudoConsole;
+        ResizePseudoConsole = &::ResizePseudoConsole;
+        ClosePseudoConsole = &::ClosePseudoConsole;
+    }
+}
+
 static COORD toCoord(TPoint point) noexcept
 {
     return {
@@ -275,6 +306,13 @@ bool createPty( PtyDescriptor &ptyDescriptor,
                 TSpan<const EnvironmentVar> customEnvironment,
                 void (&onError)(const char *) ) noexcept
 {
+    static int initConPty = [] ()
+    {
+        conPty.init();
+        (void) initConPty;
+        return 0;
+    }();
+
     HANDLE hMasterRead {},
            hClientWrite {};
     HANDLE hMasterWrite {},
@@ -303,7 +341,7 @@ bool createPty( PtyDescriptor &ptyDescriptor,
             break;
         }
 
-        if (FAILED(CreatePseudoConsole(toCoord(size), hClientRead, hClientWrite, 0, &hPseudoConsole)))
+        if (FAILED(conPty.CreatePseudoConsole(toCoord(size), hClientRead, hClientWrite, 0, &hPseudoConsole)))
         {
             failedAction = "CreatePseudoConsole";
             break;
@@ -385,7 +423,7 @@ bool createPty( PtyDescriptor &ptyDescriptor,
             if (handle)
                 CloseHandle(handle);
         if (hPseudoConsole)
-            ClosePseudoConsole(hPseudoConsole);
+            conPty.ClosePseudoConsole(hPseudoConsole);
     }
 
     for (HANDLE handle : {hClientRead, piClient.hThread})
@@ -452,12 +490,12 @@ bool PtyMaster::writeToClient(TSpan<const char> data) noexcept
 
 void PtyMaster::resizeClient(TPoint size) noexcept
 {
-    ResizePseudoConsole(d.hPseudoConsole, toCoord(size));
+    conPty.ResizePseudoConsole(d.hPseudoConsole, toCoord(size));
 }
 
 void PtyMaster::disconnect() noexcept
 {
-    ClosePseudoConsole(d.hPseudoConsole);
+    conPty.ClosePseudoConsole(d.hPseudoConsole);
     CloseHandle(d.hMasterRead);
     CloseHandle(d.hMasterWrite);
     CloseHandle(d.hClientProcess);
