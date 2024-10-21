@@ -152,7 +152,12 @@ void TerminalController::TerminalEventLoop::runWriterLoop() noexcept
         bool updated = false;
         {
             std::unique_lock<std::mutex> lock(mutex);
-            condVar.wait_until(lock, currentTimeout);
+            if (currentTimeout != TimePoint::max())
+                condVar.wait_until(lock, currentTimeout);
+            else
+                // Waiting until 'TimePoint::max()' is not always supported,
+                // so use a regular 'wait'.
+                condVar.wait(lock);
 
             if (terminated)
             {
