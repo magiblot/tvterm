@@ -80,11 +80,12 @@ struct TerminalController::TerminalEventLoop
 };
 
 TerminalController *TerminalController::create( TPoint size,
-                                            TerminalEmulatorFactory &terminalEmulatorFactory,
-                                            void (&onError)(const char *) ) noexcept
+                                                TerminalEmulatorFactory &terminalEmulatorFactory,
+                                                void (&onError)(const char *) ) noexcept
 {
-    auto ptyDescriptor = createPty(size, terminalEmulatorFactory.getCustomEnvironment(), onError);
-    if (!ptyDescriptor.valid())
+    PtyDescriptor ptyDescriptor;
+    if ( !createPty( ptyDescriptor, size,
+                     terminalEmulatorFactory.getCustomEnvironment(), onError ) )
         return nullptr;
 
     auto &terminalController = *new TerminalController( size,
@@ -121,8 +122,8 @@ void TerminalController::shutDown() noexcept
 }
 
 TerminalController::TerminalController( TPoint size,
-                                    TerminalEmulatorFactory &terminalEmulatorFactory,
-                                    PtyDescriptor ptyDescriptor ) noexcept :
+                                        TerminalEmulatorFactory &terminalEmulatorFactory,
+                                        PtyDescriptor ptyDescriptor ) noexcept :
     ptyMaster(ptyDescriptor),
     eventLoop(*new TerminalEventLoop {*this}),
     terminalEmulator(terminalEmulatorFactory.create(size, eventLoop.clientDataWriter))

@@ -95,7 +95,7 @@ inline std::ostream &operator<<(std::ostream &os, const TRect &r)
 
 } // namespace tvterm
 
-#include <vterm.h>
+#include <tvterm/vtermemu.h>
 
 namespace tvterm
 {

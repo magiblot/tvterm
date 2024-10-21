@@ -52,11 +52,11 @@ This project is still WIP. Some features it may achieve at some point are:
 - [x] UTF-8 support.
 - [x] fullwidth and zero-width character support.
 - [x] 24-bit color support.
+- [x] Windows support.
 - [ ] Scrollback.
 - [ ] Text selection.
 - [ ] Find text.
 - [ ] Send signal to child process.
 - [ ] Text reflow on resize.
 - [ ] Having other terminal emulator implementations to choose from.
-- [ ] Windows support.
 - [ ] Better dependency management.

@@ -20,7 +20,7 @@ struct TVTermConstants
     }
 };
 
-struct TerminalView;
+class TerminalView;
 struct TerminalState;
 
 struct TerminalUpdatedMsg

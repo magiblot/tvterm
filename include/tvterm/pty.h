@@ -3,7 +3,17 @@
 
 #include <stddef.h>
 
-#include <sys/types.h>
+#if !defined(_WIN32)
+#   include <sys/types.h>
+#else
+#   ifndef NOMINMAX
+#       define NOMINMAX
+#   endif
+#   include <tvision/compat/windows/windows.h>
+#   ifdef small
+#       undef small
+#   endif
+#endif
 
 template <class T>
 class TSpan;
@@ -14,13 +24,15 @@ namespace tvterm
 
 struct PtyDescriptor
 {
+#if !defined(_WIN32)
     int masterFd;
     pid_t clientPid;
-
-    bool valid() const
-    {
-        return masterFd != -1;
-    }
+#else
+    HANDLE hMasterRead;
+    HANDLE hMasterWrite;
+    HPCON hPseudoConsole;
+    HANDLE hClientProcess;
+#endif
 };
 
 struct EnvironmentVar
@@ -29,13 +41,14 @@ struct EnvironmentVar
     const char *value;
 };
 
-PtyDescriptor createPty( TPoint size, TSpan<const EnvironmentVar> environment,
-                         void (&onError)(const char *reason) ) noexcept;
+bool createPty( PtyDescriptor &ptyDescriptor,
+                TPoint size,
+                TSpan<const EnvironmentVar> environment,
+                void (&onError)(const char *reason) ) noexcept;
 
 class PtyMaster
 {
-    int masterFd;
-    pid_t clientPid;
+    PtyDescriptor d;
 
 public:
 
@@ -48,8 +61,7 @@ public:
 };
 
 inline PtyMaster::PtyMaster(PtyDescriptor ptyDescriptor) noexcept :
-    masterFd(ptyDescriptor.masterFd),
-    clientPid(ptyDescriptor.clientPid)
+    d(ptyDescriptor)
 {
 }
 

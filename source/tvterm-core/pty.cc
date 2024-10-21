@@ -3,6 +3,7 @@
 #define Uses_TPoint
 #include <tvision/tv.h>
 
+#if !defined(_WIN32)
 #include <stdio.h>
 #include <unistd.h>
 #include <signal.h>
@@ -75,17 +76,18 @@ bool PtyMaster::readFromClient(TSpan<char> data, size_t &bytesRead) noexcept
     bytesRead = 0;
     if (data.size() > 1)
     {
-        ssize_t r = read(masterFd, &data[0], 1);
+        ssize_t r = read(d.masterFd, &data[0], 1);
         if (r < 0)
             return false;
         else if (r > 0)
         {
             bytesRead += r;
             int availableBytes = 0;
-            if ( ioctl(masterFd, FIONREAD, &availableBytes) != -1 &&
+            if ( ioctl(d.masterFd, FIONREAD, &availableBytes) != -1 &&
                  availableBytes > 0 )
             {
-                r = read(masterFd, &data[1], min(availableBytes, data.size() - 1));
+                size_t bytesToRead = min(availableBytes, data.size() - 1);
+                r = read(d.masterFd, &data[1], bytesToRead);
                 if (r < 0)
                     return false;
                 bytesRead += r;
@@ -100,7 +102,8 @@ bool PtyMaster::writeToClient(TSpan<const char> data) noexcept
     size_t written = 0;
     while (written < data.size())
     {
-        ssize_t r = write(masterFd, &data[written], data.size() - written);
+        size_t bytesToWrite = data.size() - written;
+        ssize_t r = write(d.masterFd, &data[written], bytesToWrite);
         if (r < 0)
             return false;
         written += r;
@@ -113,21 +116,21 @@ void PtyMaster::resizeClient(TPoint size) noexcept
     struct winsize w = {};
     w.ws_row = size.y;
     w.ws_col = size.x;
-    int rr = ioctl(masterFd, TIOCSWINSZ, &w);
+    int rr = ioctl(d.masterFd, TIOCSWINSZ, &w);
     (void) rr;
 }
 
 void PtyMaster::disconnect() noexcept
 {
-    close(masterFd);
+    close(d.masterFd);
     // Send a SIGHUP, then a SIGKILL after a while if the process is not yet
     // terminated, like most terminal emulators do.
-    kill(clientPid, SIGHUP);
+    kill(d.clientPid, SIGHUP);
     sleep(1);
-    if (waitpid(clientPid, nullptr, WNOHANG) != clientPid)
+    if (waitpid(d.clientPid, nullptr, WNOHANG) != d.clientPid)
     {
-        kill(clientPid, SIGKILL);
-        while( waitpid(clientPid, nullptr, 0) != clientPid &&
+        kill(d.clientPid, SIGKILL);
+        while( waitpid(d.clientPid, nullptr, 0) != d.clientPid &&
                errno == EINTR );
     }
 }
@@ -202,3 +205,264 @@ static struct termios createTermios() noexcept
 }
 
 } // namespace tvterm
+
+#else
+
+#include <vector>
+
+namespace tvterm
+{
+
+static COORD toCoord(TPoint point) noexcept
+{
+    return {
+        (short) point.x,
+        (short) point.y,
+    };
+}
+
+static std::vector<char> constructEnvironmentBlock(TSpan<const EnvironmentVar> customEnvironment) noexcept
+{
+    std::vector<char> result;
+
+    if (const char *currentEnvironment = GetEnvironmentStrings())
+    {
+        size_t len = 1;
+        // The environment block is terminated by two null characters.
+        while (currentEnvironment[len - 1] != '\0' || currentEnvironment[len] != '\0')
+            ++len;
+        result.insert(result.end(), &currentEnvironment[0], &currentEnvironment[len]);
+    }
+
+    for (const auto &var : customEnvironment)
+    {
+        TStringView name(var.name),
+                    value(var.value);
+        result.insert(result.end(), name.begin(), name.end());
+        result.push_back('=');
+        result.insert(result.end(), value.begin(), value.end());
+        result.push_back('\0');
+    }
+
+    result.push_back('\0');
+
+    return result;
+}
+
+struct ProcessWaiter
+{
+    HANDLE hClientWrite;
+    HANDLE hWait;
+
+    ~ProcessWaiter()
+    {
+        CloseHandle(hClientWrite);
+    }
+
+    static void CALLBACK callback(PVOID ctx, BOOLEAN)
+    {
+        auto &self = *(ProcessWaiter *) ctx;
+        // Wake up the thread waiting for client data.
+        DWORD r = 0;
+        WriteFile(self.hClientWrite, "", 1, &r, nullptr);
+        UnregisterWait(self.hWait);
+        delete &self;
+    }
+};
+
+bool createPty( PtyDescriptor &ptyDescriptor,
+                TPoint size,
+                TSpan<const EnvironmentVar> customEnvironment,
+                void (&onError)(const char *) ) noexcept
+{
+    HANDLE hMasterRead {},
+           hClientWrite {};
+    HANDLE hMasterWrite {},
+           hClientRead {};
+    HPCON hPseudoConsole {};
+    STARTUPINFOEXA siClient {};
+    PROCESS_INFORMATION piClient {};
+
+    size_t attrListSize = 0;
+    InitializeProcThreadAttributeList(nullptr, 1, 0, &attrListSize);
+    std::vector<char> attributeList(attrListSize);
+
+    const char *failedAction {};
+
+    do
+    {
+        if (!CreatePipe(&hMasterRead, &hClientWrite, nullptr, 0))
+        {
+            failedAction = "CreatePipe";
+            break;
+        }
+
+        if (!CreatePipe(&hClientRead, &hMasterWrite, nullptr, 0))
+        {
+            failedAction = "CreatePipe";
+            break;
+        }
+
+        if (FAILED(CreatePseudoConsole(toCoord(size), hClientRead, hClientWrite, 0, &hPseudoConsole)))
+        {
+            failedAction = "CreatePseudoConsole";
+            break;
+        }
+
+        siClient.StartupInfo.cb = sizeof(STARTUPINFOEX);
+        siClient.lpAttributeList = (LPPROC_THREAD_ATTRIBUTE_LIST) &attributeList[0];
+        if (!InitializeProcThreadAttributeList(siClient.lpAttributeList, 1, 0, &attrListSize))
+        {
+            failedAction = "InitializeProcThreadAttributeList";
+            break;
+        }
+
+        if ( !UpdateProcThreadAttribute( siClient.lpAttributeList,
+                                         0,
+                                         PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE,
+                                         hPseudoConsole,
+                                         sizeof(HPCON),
+                                         nullptr,
+                                         nullptr ) )
+        {
+            failedAction = "UpdateProcThreadAttribute";
+            break;
+        }
+
+        char *comspec = getenv("COMSPEC");
+        if (!comspec)
+        {
+            failedAction = "Retrieving 'COMSPEC' environment variable";
+            break;
+        }
+
+        std::vector<char> environmentBlock = constructEnvironmentBlock(customEnvironment);
+        if ( !CreateProcessA( nullptr,
+                              comspec,
+                              nullptr,
+                              nullptr,
+                              false,
+                              EXTENDED_STARTUPINFO_PRESENT,
+                              &environmentBlock[0],
+                              nullptr,
+                              (LPSTARTUPINFOA) &siClient.StartupInfo,
+                              &piClient ) )
+        {
+            failedAction = "CreateProcessA";
+            break;
+        }
+
+        ProcessWaiter &procWaiter = *new ProcessWaiter {hClientWrite};
+        if ( !RegisterWaitForSingleObject( &procWaiter.hWait,
+                                           piClient.hProcess,
+                                           &ProcessWaiter::callback,
+                                           &procWaiter,
+                                           INFINITE,
+                                           WT_EXECUTEINWAITTHREAD | WT_EXECUTEONLYONCE ) )
+        {
+            failedAction = "RegisterWaitForSingleObject";
+            delete &procWaiter;
+            break;
+        }
+    } while (false);
+
+    if (!failedAction)
+    {
+        ptyDescriptor = {
+            hMasterRead,
+            hMasterWrite,
+            hPseudoConsole,
+            piClient.hProcess,
+        };
+    }
+    else
+    {
+        char *msg = fmtStr("%s failed with error code %d", failedAction, (int) GetLastError());
+        onError(msg);
+        delete[] msg;
+
+        for (HANDLE handle : {hMasterRead, hMasterWrite, hClientWrite, piClient.hProcess})
+            if (handle)
+                CloseHandle(handle);
+        if (hPseudoConsole)
+            ClosePseudoConsole(hPseudoConsole);
+    }
+
+    for (HANDLE handle : {hClientRead, piClient.hThread})
+        if (handle)
+            CloseHandle(handle);
+    if (siClient.lpAttributeList)
+        DeleteProcThreadAttributeList(siClient.lpAttributeList);
+
+    return !failedAction;
+}
+
+static bool processIsNotRunning(HANDLE hProcess)
+{
+    DWORD exitCode;
+    return !GetExitCodeProcess(hProcess, &exitCode) ||
+           exitCode != STILL_ACTIVE;
+}
+
+bool PtyMaster::readFromClient(TSpan<char> data, size_t &bytesRead) noexcept
+{
+    bytesRead = 0;
+
+    if (processIsNotRunning(d.hClientProcess))
+        return false;
+
+    if (data.size() > 1)
+    {
+        DWORD r;
+        if (!ReadFile(d.hMasterRead, &data[0], 1, &r, nullptr))
+            return false;
+        else if (r > 0)
+        {
+            bytesRead += r;
+            DWORD availableBytes = 0;
+            if ( PeekNamedPipe(d.hMasterRead, nullptr, 0, nullptr, &availableBytes, nullptr)  &&
+                 availableBytes > 0 )
+            {
+                DWORD bytesToRead = min(availableBytes, data.size() - 1);
+                if (!ReadFile(d.hMasterRead, &data[1], bytesToRead, &r, nullptr))
+                    return false;
+                bytesRead += r;
+            }
+        }
+    }
+    return true;
+}
+
+bool PtyMaster::writeToClient(TSpan<const char> data) noexcept
+{
+    if (processIsNotRunning(d.hClientProcess))
+        return false;
+
+    size_t written = 0;
+    while (written < data.size())
+    {
+        DWORD bytesToWrite = data.size() - written;
+        DWORD r;
+        if (!WriteFile(d.hMasterWrite, &data[written], bytesToWrite, &r, nullptr))
+            return false;
+        written += r;
+    }
+    return true;
+}
+
+void PtyMaster::resizeClient(TPoint size) noexcept
+{
+    ResizePseudoConsole(d.hPseudoConsole, toCoord(size));
+}
+
+void PtyMaster::disconnect() noexcept
+{
+    ClosePseudoConsole(d.hPseudoConsole);
+    CloseHandle(d.hMasterRead);
+    CloseHandle(d.hMasterWrite);
+    CloseHandle(d.hClientProcess);
+}
+
+} // namespace tvterm
+
+#endif // _WIN32
