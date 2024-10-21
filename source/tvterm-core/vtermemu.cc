@@ -102,7 +102,7 @@ namespace vtermemu
         if ( tvKey.mods == kbCtrlShift
              && 'A' <= tvKey.code && tvKey.code <= 'Z' )
         {
-            keyDown.text[0] = keyDown.keyCode;
+            keyDown.text[0] = keyDown.charScan.charCode;
             keyDown.textLength = 1;
             vtMod = VTERM_MOD_NONE;
         }
@@ -112,6 +112,11 @@ namespace vtermemu
         {
             keyDown.text[0] = (char) tvKey.code;
             keyDown.textLength = 1;
+            // On Windows, ConPTY unfortunately adds the Shift modifier on an
+            // uppercase Alt+Key, so make it lowercase.
+            if ( (keyDown.controlKeyState & (kbShift | kbCtrlShift | kbAltShift)) == kbLeftAlt
+                 && ('A' <= tvKey.code && tvKey.code <= 'Z') )
+                keyDown.text[0] += 'a' - 'A';
         }
 
         if (keyDown.textLength != 0)
