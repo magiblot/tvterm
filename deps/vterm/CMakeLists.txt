@@ -36,11 +36,10 @@ target_include_directories(vterm PRIVATE
 
 if(MSVC)
     target_compile_definitions(vterm PRIVATE
-        -D_CRT_SECURE_NO_WARNINGS
-        -D_CRT_NONSTDC_NO_DEPRECATE
+        _CRT_SECURE_NO_WARNINGS
+        _CRT_NONSTDC_NO_DEPRECATE
     )
 else()
-    target_compile_definitions(vterm PRIVATE
-        -std=c99
-    )
+    set_property(TARGET vterm PROPERTY C_STANDARD 99)
+    set_property(TARGET vterm PROPERTY C_STANDARD_REQUIRED ON)
 endif()
