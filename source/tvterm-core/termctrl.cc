@@ -55,8 +55,8 @@ struct TerminalController::TerminalEventLoop
 
     // Used for waking up the WriterLoop a short time after data was received
     // by the ReaderLoop thread.
-    TimePoint currentTimeout {TimePoint::max()};
-    TimePoint maxReadTimeout {TimePoint::max()};
+    TimePoint currentTimeout {};
+    TimePoint maxReadTimeout {};
 
     // Used for waking up the WriterLoop thread on demand, e.g. when there are
     // pending events or when the timeouts change.
@@ -152,10 +152,10 @@ void TerminalController::TerminalEventLoop::runWriterLoop() noexcept
         bool updated = false;
         {
             std::unique_lock<std::mutex> lock(mutex);
-            if (currentTimeout != TimePoint::max())
+            if (currentTimeout != TimePoint())
                 condVar.wait_until(lock, currentTimeout);
             else
-                // Waiting until 'TimePoint::max()' is not always supported,
+                // Waiting until 'TimePoint()' is not always supported,
                 // so use a regular 'wait'.
                 condVar.wait(lock);
 
@@ -265,15 +265,15 @@ void TerminalController::TerminalEventLoop::updateState(bool &updated) noexcept
     if (Clock::now() > currentTimeout)
     {
         updated = true;
-        currentTimeout = TimePoint::max();
-        maxReadTimeout = TimePoint::max();
+        currentTimeout = TimePoint();
+        maxReadTimeout = TimePoint();
 
         ctrl.lockState([&] (auto &state) {
             ctrl.terminalEmulator.updateState(state);
         });
     }
 
-    if (currentTimeout == TimePoint::max() && viewportResized)
+    if (currentTimeout == TimePoint() && viewportResized)
     {
         // Handle the resize only once we reach a timeout and after updating
         // the TerminalState, because the client is now likely drawn properly.
@@ -295,7 +295,7 @@ void TerminalController::TerminalEventLoop::updateTimeouts() noexcept
     // - 'readWaitStepMs' after data was last received.
     // - 'maxReadTimeMs' after the first time data was received.
     auto now = Clock::now();
-    if (maxReadTimeout == TimePoint::max())
+    if (maxReadTimeout == TimePoint())
         maxReadTimeout = now + std::chrono::milliseconds(maxReadTimeMs);
 
     currentTimeout = ::min( now + std::chrono::milliseconds(readWaitStepMs),
