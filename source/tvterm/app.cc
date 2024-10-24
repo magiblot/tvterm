@@ -42,7 +42,7 @@ int main(int, char**)
 
 TVTermApp::TVTermApp() :
     TProgInit( &TVTermApp::initStatusLine,
-               &TVTermApp::initMenuBar,
+               nullptr,
                &TVTermApp::initDeskTop
              )
 {
@@ -52,49 +52,29 @@ TVTermApp::TVTermApp() :
     newTerm();
 }
 
-TMenuBar *TVTermApp::initMenuBar(TRect r)
-{
-    r.b.y = r.a.y + 1;
-    return new TMenuBar(r,
-        *new TSubMenu("File", kbNoKey) +
-            *new TMenuItem("~N~ew Term", cmNewTerm, kbNoKey) +
-            newLine() +
-            *new TMenuItem("~C~hange dir...", cmChangeDir, kbNoKey) +
-            *new TMenuItem("S~u~spend", cmDosShell, kbNoKey) +
-            *new TMenuItem("E~x~it", cmQuit, kbNoKey) +
-        *new TSubMenu("Windows", kbNoKey) +
-            *new TMenuItem("Re~s~ize/Move", cmResize, kbNoKey) +
-            *new TMenuItem("Maximi~z~e/Restore", cmZoom, kbNoKey) +
-            *new TMenuItem("~T~ile (Columns First)", cmTileCols, kbNoKey) +
-            *new TMenuItem("Tile (~R~ows First)", cmTileRows, kbNoKey) +
-            *new TMenuItem("C~a~scade", cmCascade, kbNoKey) +
-            *new TMenuItem("~N~ext", cmNext, kbNoKey) +
-            *new TMenuItem("~P~revious", cmPrev, kbNoKey) +
-            *new TMenuItem("~C~lose", cmClose, kbNoKey)
-            );
-}
-
 TStatusLine *TVTermApp::initStatusLine(TRect r)
 {
-    r.a.y = r.b.y - 1;
-    return new TStatusLine(r,
+    r.b.y = r.a.y + 1;
+    TStatusLine *statusLine = new TStatusLine(r,
         *new TStatusDef(hcDragging, hcDragging) +
             *new TStatusItem("~Arrow~ Move", kbNoKey, 0) +
             *new TStatusItem("~Shift-Arrow~ Resize", kbNoKey, 0) +
             *new TStatusItem("~Enter~ Done", kbNoKey, 0) +
             *new TStatusItem("~Esc~ Cancel", kbNoKey, 0) +
         *new TStatusDef(hcInputGrabbed, hcInputGrabbed) +
-            *new TStatusItem("~Alt-PgDn~ Release Input", kbAltPgDn, cmReleaseInput) +
-        *new TStatusDef(hcQuickMenu, hcQuickMenu) +
-            *new TStatusItem("~Esc~ Hide Menu", kbEsc, 0) +
+            *new TStatusItem("~Alt-End~ Release Input", kbAltEnd, cmReleaseInput) +
+        *new TStatusDef(hcMenu, hcMenu) +
+            *new TStatusItem("~Esc~ Close Menu", kbNoKey, 0) +
         *new TStatusDef(0, 0xFFFF) +
-            *new TStatusItem("~Ctrl-B~ Quick Menu" , kbCtrlB, cmQuickMenu)
+            *new TStatusItem("~Ctrl-B~ Open Menu" , kbCtrlB, cmMenu)
             );
+    statusLine->growMode = gfGrowHiX;
+    return statusLine;
 }
 
 TDeskTop *TVTermApp::initDeskTop(TRect r)
 {
-    r.grow(0, -1);
+    r.a.y += 1;
     return new TVTermDesk(r);
 }
 
@@ -107,7 +87,7 @@ void TVTermApp::handleEvent(TEvent &event)
         case evCommand:
             switch (event.message.command)
             {
-                case cmQuickMenu: showQuickMenu(); break;
+                case cmMenu: openMenu(); break;
                 case cmNewTerm: newTerm(); break;
                 case cmChangeDir: changeDir(); break;
                 case cmTileCols: getDeskTop()->tileVertical(getTileRect()); break;
@@ -170,7 +150,7 @@ void TVTermApp::idle()
     message(this, evBroadcast, cmCheckTerminalUpdates, nullptr);
 }
 
-void TVTermApp::showQuickMenu()
+void TVTermApp::openMenu()
 {
     TMenuItem &menuItems =
         *new TMenuItem("New Term", cmNewTerm, 'N', hcNoContext, "~N~") +
@@ -181,15 +161,20 @@ void TVTermApp::showQuickMenu()
         *new TMenuItem("Tile (Columns First)", cmTileCols, 'V', hcNoContext, "~V~") +
         *new TMenuItem("Tile (Rows First)", cmTileRows, 'H', hcNoContext, "~H~") +
         *new TMenuItem("Resize", cmResize, 'R', hcNoContext, "~R~") +
-        *new TMenuItem("Grab Input", cmGrabInput, 'I', hcNoContext, "~I~") +
         newLine() +
-        *new TMenuItem("Top Menu", cmMenu, 'M', hcNoContext, "~M~") +
+        ( *new TSubMenu("~M~ore...", kbNoKey, hcMenu) +
+            *new TMenuItem("~C~hange working dir...", cmChangeDir, kbNoKey) +
+            newLine() +
+            *new TMenuItem("Maximi~z~e/Restore", cmZoom, kbNoKey) +
+            *new TMenuItem("C~a~scade", cmCascade, kbNoKey) +
+            *new TMenuItem("~G~rab Input", cmGrabInput, kbNoKey)
+        ) +
         *new TMenuItem("Suspend", cmDosShell, 'U', hcNoContext, "~U~") +
         *new TMenuItem("Exit", cmQuit, 'Q', hcNoContext, "~Q~");
 
     TMenu *menu = new TMenu(menuItems);
     TMenuPopup *menuPopup = new CenteredMenuPopup(menu);
-    menuPopup->helpCtx = hcQuickMenu;
+    menuPopup->helpCtx = hcMenu;
 
     if (ushort cmd = execView(menuPopup))
     {

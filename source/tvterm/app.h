@@ -12,7 +12,6 @@ struct TVTermApp : public TApplication
     static TCommandSet tileCmds;
 
     TVTermApp();
-    static TMenuBar* initMenuBar(TRect r);
     static TStatusLine* initStatusLine(TRect r);
     static TDeskTop* initDeskTop(TRect r);
 
@@ -26,7 +25,7 @@ struct TVTermApp : public TApplication
 
     // Command handlers
 
-    void showQuickMenu();
+    void openMenu();
     void newTerm();
     void changeDir();
 

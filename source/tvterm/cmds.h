@@ -14,13 +14,12 @@ enum : ushort
     cmCheckTerminalUpdates,
     cmTerminalUpdated,
     cmGetOpenTerms,
-    cmQuickMenu,
 };
 
 enum : ushort
 {
-    hcInputGrabbed = 1000,
-    hcQuickMenu,
+    hcMenu = 1000,
+    hcInputGrabbed,
 };
 
 #endif // TVTERM_CMDS_H
