@@ -1,5 +1,6 @@
 #define Uses_TMenuBar
 #define Uses_TSubMenu
+#define Uses_TMenu
 #define Uses_TMenuItem
 #define Uses_TStatusLine
 #define Uses_TStatusItem
@@ -22,7 +23,6 @@
 #include <stdlib.h>
 #include <signal.h>
 
-TVTermApp* TVTermApp::app;
 TCommandSet TVTermApp::tileCmds = []()
 {
     TCommandSet ts;
@@ -36,9 +36,7 @@ TCommandSet TVTermApp::tileCmds = []()
 int main(int, char**)
 {
     TVTermApp app;
-    TVTermApp::app = &app;
     app.run();
-    TVTermApp::app = nullptr;
     app.shutDown();
 }
 
@@ -56,46 +54,45 @@ TVTermApp::TVTermApp() :
 
 TMenuBar *TVTermApp::initMenuBar(TRect r)
 {
-    r.b.y = r.a.y+1;
-    return new TMenuBar( r,
-        *new TSubMenu( "~F~ile", kbAltF, hcNoContext ) +
-            *new TMenuItem( "~N~ew", cmNewTerm, kbCtrlN, hcNoContext, "Ctrl-N" ) +
+    r.b.y = r.a.y + 1;
+    return new TMenuBar(r,
+        *new TSubMenu("File", kbNoKey) +
+            *new TMenuItem("~N~ew Term", cmNewTerm, kbNoKey) +
             newLine() +
-            *new TMenuItem( "~C~hange dir...", cmChangeDir, kbNoKey ) +
-            *new TMenuItem( "S~u~spend", cmDosShell, kbNoKey, hcNoContext ) +
-            *new TMenuItem( "E~x~it", cmQuit, kbAltX, hcNoContext, "Alt-X" ) +
-        *new TSubMenu( "~W~indows", kbAltW ) +
-            *new TMenuItem( "~S~ize/move",cmResize, kbCtrlF5, hcNoContext, "Ctrl-F5" ) +
-            *new TMenuItem( "~Z~oom", cmZoom, kbF5, hcNoContext, "F5" ) +
-            *new TMenuItem( "~T~ile (Columns First)", cmTileCols, kbNoKey ) +
-            *new TMenuItem( "Tile (~R~ows First)", cmTileRows, kbNoKey ) +
-            *new TMenuItem( "C~a~scade", cmCascade, kbNoKey ) +
-            *new TMenuItem( "~N~ext", cmNext, kbF6, hcNoContext, "F6" ) +
-            *new TMenuItem( "~P~revious", cmPrev, kbShiftF6, hcNoContext, "Shift-F6" ) +
-            *new TMenuItem( "~C~lose", cmClose, kbAltF3, hcNoContext, "Alt+F3" )
+            *new TMenuItem("~C~hange dir...", cmChangeDir, kbNoKey) +
+            *new TMenuItem("S~u~spend", cmDosShell, kbNoKey) +
+            *new TMenuItem("E~x~it", cmQuit, kbNoKey) +
+        *new TSubMenu("Windows", kbNoKey) +
+            *new TMenuItem("Re~s~ize/Move", cmResize, kbNoKey) +
+            *new TMenuItem("Maximi~z~e/Restore", cmZoom, kbNoKey) +
+            *new TMenuItem("~T~ile (Columns First)", cmTileCols, kbNoKey) +
+            *new TMenuItem("Tile (~R~ows First)", cmTileRows, kbNoKey) +
+            *new TMenuItem("C~a~scade", cmCascade, kbNoKey) +
+            *new TMenuItem("~N~ext", cmNext, kbNoKey) +
+            *new TMenuItem("~P~revious", cmPrev, kbNoKey) +
+            *new TMenuItem("~C~lose", cmClose, kbNoKey)
             );
 }
 
-TStatusLine *TVTermApp::initStatusLine( TRect r )
+TStatusLine *TVTermApp::initStatusLine(TRect r)
 {
-    r.a.y = r.b.y-1;
-    return new TStatusLine( r,
-        *new TStatusDef( hcDragging, hcDragging ) +
-            *new TStatusItem( "~Arrow~ Move", kbNoKey, cmValid ) +
-            *new TStatusItem( "~Shift-Arrow~ Resize", kbNoKey, cmValid ) +
-            *new TStatusItem( "~Enter~ Done", kbNoKey, cmValid ) +
-            *new TStatusItem( "~Esc~ Abort", kbNoKey, cmValid ) +
-        *new TStatusDef( hcInputGrabbed, hcInputGrabbed ) +
-            *new TStatusItem( "~Alt-PgDn~ Release Input", kbAltPgDn, cmReleaseInput ) +
-        *new TStatusDef( 0, 0xFFFF ) +
-            *new TStatusItem( "~Ctrl-N~ New", kbNoKey, cmNewTerm ) +
-            *new TStatusItem( "~F6~ Next", kbNoKey, cmNext ) +
-            *new TStatusItem( "~Alt-PgUp~ Grab Input", kbAltPgUp, cmGrabInput ) +
-            *new TStatusItem( "~F12~ Menu" , kbF12, cmMenu )
+    r.a.y = r.b.y - 1;
+    return new TStatusLine(r,
+        *new TStatusDef(hcDragging, hcDragging) +
+            *new TStatusItem("~Arrow~ Move", kbNoKey, 0) +
+            *new TStatusItem("~Shift-Arrow~ Resize", kbNoKey, 0) +
+            *new TStatusItem("~Enter~ Done", kbNoKey, 0) +
+            *new TStatusItem("~Esc~ Cancel", kbNoKey, 0) +
+        *new TStatusDef(hcInputGrabbed, hcInputGrabbed) +
+            *new TStatusItem("~Alt-PgDn~ Release Input", kbAltPgDn, cmReleaseInput) +
+        *new TStatusDef(hcQuickMenu, hcQuickMenu) +
+            *new TStatusItem("~Esc~ Hide Menu", kbEsc, 0) +
+        *new TStatusDef(0, 0xFFFF) +
+            *new TStatusItem("~Ctrl-B~ Quick Menu" , kbCtrlB, cmQuickMenu)
             );
 }
 
-TDeskTop *TVTermApp::initDeskTop( TRect r )
+TDeskTop *TVTermApp::initDeskTop(TRect r)
 {
     r.grow(0, -1);
     return new TVTermDesk(r);
@@ -110,6 +107,7 @@ void TVTermApp::handleEvent(TEvent &event)
         case evCommand:
             switch (event.message.command)
             {
+                case cmQuickMenu: showQuickMenu(); break;
                 case cmNewTerm: newTerm(); break;
                 case cmChangeDir: changeDir(); break;
                 case cmTileCols: getDeskTop()->tileVertical(getTileRect()); break;
@@ -170,6 +168,39 @@ void TVTermApp::idle()
             disableCommands(tileCmds);
     }
     message(this, evBroadcast, cmCheckTerminalUpdates, nullptr);
+}
+
+void TVTermApp::showQuickMenu()
+{
+    TMenuItem &menuItems =
+        *new TMenuItem("New Term", cmNewTerm, 'N', hcNoContext, "~N~") +
+        *new TMenuItem("Close Term", cmClose, 'W', hcNoContext, "~W~") +
+        newLine() +
+        *new TMenuItem("Next Term", cmNext, kbTab, hcNoContext, "~Tab~") +
+        *new TMenuItem("Previous Term", cmPrev, kbShiftTab, hcNoContext, "~Shift-Tab~") +
+        *new TMenuItem("Tile (Columns First)", cmTileCols, 'V', hcNoContext, "~V~") +
+        *new TMenuItem("Tile (Rows First)", cmTileRows, 'H', hcNoContext, "~H~") +
+        *new TMenuItem("Resize", cmResize, 'R', hcNoContext, "~R~") +
+        *new TMenuItem("Grab Input", cmGrabInput, 'I', hcNoContext, "~I~") +
+        newLine() +
+        *new TMenuItem("Top Menu", cmMenu, 'M', hcNoContext, "~M~") +
+        *new TMenuItem("Suspend", cmDosShell, 'U', hcNoContext, "~U~") +
+        *new TMenuItem("Exit", cmQuit, 'Q', hcNoContext, "~Q~");
+
+    TMenu *menu = new TMenu(menuItems);
+    TMenuPopup *menuPopup = new CenteredMenuPopup(menu);
+    menuPopup->helpCtx = hcQuickMenu;
+
+    if (ushort cmd = execView(menuPopup))
+    {
+        TEvent event = {};
+        event.what = evCommand;
+        event.message.command = cmd;
+        putEvent(event);
+    }
+
+    TObject::destroy(menuPopup);
+    delete menu;
 }
 
 static void onTermError(const char *reason)

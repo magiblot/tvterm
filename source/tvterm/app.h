@@ -9,7 +9,6 @@ class TVTermDesk;
 
 struct TVTermApp : public TApplication
 {
-    static TVTermApp *app;
     static TCommandSet tileCmds;
 
     TVTermApp();
@@ -27,6 +26,7 @@ struct TVTermApp : public TApplication
 
     // Command handlers
 
+    void showQuickMenu();
     void newTerm();
     void changeDir();
 
