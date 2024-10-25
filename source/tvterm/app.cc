@@ -107,12 +107,8 @@ void TVTermApp::handleEvent(TEvent &event)
 
 size_t TVTermApp::getOpenTermCount()
 {
-    auto getOpenTerms = [] (TView *p, void *infoPtr)
-    {
-        message(p, evBroadcast, cmGetOpenTerms, infoPtr);
-    };
     size_t count = 0;
-    deskTop->forEach(getOpenTerms, &count);
+    message(this, evBroadcast, cmGetOpenTerms, &count);
     return count;
 }
 
