@@ -220,30 +220,27 @@ namespace tvterm
 
 struct ConPtyApi
 {
-    decltype(::CreatePseudoConsole) *CreatePseudoConsole;
-    decltype(::ResizePseudoConsole) *ResizePseudoConsole;
-    decltype(::ClosePseudoConsole) *ClosePseudoConsole;
+    decltype(::CreatePseudoConsole) *CreatePseudoConsole {nullptr};
+    decltype(::ResizePseudoConsole) *ResizePseudoConsole {nullptr};
+    decltype(::ClosePseudoConsole) *ClosePseudoConsole {nullptr};
 
     void init() noexcept;
-} conPty;
+};
+
+static ConPtyApi conPty;
 
 void ConPtyApi::init() noexcept
 {
-    if (HMODULE mod = LoadLibraryA("conpty.dll"))
-    {
-        CreatePseudoConsole =
-            (decltype(CreatePseudoConsole)) GetProcAddress(mod, "CreatePseudoConsole");
-        ResizePseudoConsole =
-            (decltype(ResizePseudoConsole)) GetProcAddress(mod, "ResizePseudoConsole");
-        ClosePseudoConsole =
-            (decltype(ClosePseudoConsole)) GetProcAddress(mod, "ClosePseudoConsole");
-    }
-    else
-    {
-        CreatePseudoConsole = &::CreatePseudoConsole;
-        ResizePseudoConsole = &::ResizePseudoConsole;
-        ClosePseudoConsole = &::ClosePseudoConsole;
-    }
+    HMODULE mod = LoadLibraryA("conpty");
+    if (!mod)
+        mod = GetModuleHandleA("kernel32");
+
+    CreatePseudoConsole =
+        (decltype(CreatePseudoConsole)) GetProcAddress(mod, "CreatePseudoConsole");
+    ResizePseudoConsole =
+        (decltype(ResizePseudoConsole)) GetProcAddress(mod, "ResizePseudoConsole");
+    ClosePseudoConsole =
+        (decltype(ClosePseudoConsole)) GetProcAddress(mod, "ClosePseudoConsole");
 }
 
 static COORD toCoord(TPoint point) noexcept
@@ -308,11 +305,12 @@ bool createPty( PtyDescriptor &ptyDescriptor,
                 TSpan<const EnvironmentVar> customEnvironment,
                 void (&onError)(const char *) ) noexcept
 {
-    static int initConPty = [] ()
+    static bool conPtyAvailable = [] ()
     {
         conPty.init();
-        (void) initConPty;
-        return 0;
+        return conPty.CreatePseudoConsole &&
+               conPty.ResizePseudoConsole &&
+               conPty.ClosePseudoConsole;
     }();
 
     HANDLE hMasterRead {},
@@ -331,6 +329,12 @@ bool createPty( PtyDescriptor &ptyDescriptor,
 
     do
     {
+        if (!conPtyAvailable)
+        {
+            failedAction = "Loading ConPTY";
+            break;
+        }
+
         if (!CreatePipe(&hMasterRead, &hClientWrite, nullptr, 0))
         {
             failedAction = "CreatePipe";

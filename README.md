@@ -8,7 +8,7 @@ A terminal emulator that runs in your terminal. Powered by Turbo Vision.
 
 `tvterm` relies on Paul Evan's [libvterm](http://www.leonerd.org.uk/code/libvterm/) terminal emulator, also used by [Neovim](https://github.com/neovim/libvterm) and [Emacs](https://github.com/akermu/emacs-libvterm).
 
-As of now, `tvterm` can only be compiled for Unix systems.
+Additionally, `tvterm` supports both Unix and Windows (Windows 10 1809 or later).
 
 The original location of this project is https://github.com/magiblot/tvterm.
 
