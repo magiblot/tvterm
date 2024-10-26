@@ -420,16 +420,11 @@ int VTermEmulator::settermprop(VTermProp prop, VTermValue *val)
     dout << "settermprop(" << prop << ", " << val << ")" << std::endl;
     if (vterm_get_prop_type(prop) == VTERM_VALUETYPE_STRING)
     {
-#ifdef HAVE_VTERMSTRINGFRAGMENT
         if (val->string.initial)
             strFragBuf.clear();
         strFragBuf.push(val->string.str, val->string.len);
         if (!val->string.final)
             return true;
-#else
-        strFragBuf.clear();
-        strFragBuf.push(val->string, val->string ? strlen(val->string) : 0);
-#endif
     }
 
     switch (prop)

@@ -29,7 +29,6 @@ if (TVTERM_USE_SYSTEM_LIBVTERM)
     tvterm_find_library_and_header(vterm "vterm.h")
 else()
     add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/vterm" EXCLUDE_FROM_ALL)
-    get_target_property(vterm_INCLUDE vterm INCLUDE_DIRECTORIES)
 endif()
 
 set(TV_OPTIMIZE_BUILD ${TVTERM_OPTIMIZE_BUILD})
