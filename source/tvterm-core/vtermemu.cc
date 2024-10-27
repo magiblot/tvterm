@@ -269,7 +269,6 @@ VTermEmulator::VTermEmulator(TPoint size, Writer &aClientDataWriter) noexcept :
 
     vtScreen = vterm_obtain_screen(vt);
     vterm_screen_enable_altscreen(vtScreen, true);
-    vterm_screen_enable_reflow(vtScreen, true);
     vterm_screen_set_callbacks(vtScreen, &callbacks, this);
     vterm_screen_set_damage_merge(vtScreen, VTERM_DAMAGE_SCROLL);
     vterm_screen_reset(vtScreen, true);
