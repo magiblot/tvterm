@@ -57,8 +57,9 @@ TStatusLine *TVTermApp::initStatusLine(TRect r)
     r.b.y = r.a.y + 1;
     TStatusLine *statusLine = new TStatusLine(r,
         *new TStatusDef(hcDragging, hcDragging) +
-            *new TStatusItem("~Arrow~ Move", kbNoKey, 0) +
-            *new TStatusItem("~Shift-Arrow~ Resize", kbNoKey, 0) +
+            *new TStatusItem("~↑↓→←~ Move", kbNoKey, 0) +
+            *new TStatusItem("~Shift-↑↓→←~ Resize", kbNoKey, 0) +
+            *new TStatusItem("~Ctrl~ Move/Resize Faster", kbNoKey, 0) +
             *new TStatusItem("~Enter~ Done", kbNoKey, 0) +
             *new TStatusItem("~Esc~ Cancel", kbNoKey, 0) +
         *new TStatusDef(hcInputGrabbed, hcInputGrabbed) +
@@ -156,12 +157,12 @@ void TVTermApp::openMenu()
         *new TMenuItem("Previous Term", cmPrev, kbShiftTab, hcNoContext, "~Shift-Tab~") +
         *new TMenuItem("Tile (Columns First)", cmTileCols, 'V', hcNoContext, "~V~") +
         *new TMenuItem("Tile (Rows First)", cmTileRows, 'H', hcNoContext, "~H~") +
-        *new TMenuItem("Resize", cmResize, 'R', hcNoContext, "~R~") +
+        *new TMenuItem("Resize/Move", cmResize, 'R', hcNoContext, "~R~") +
+        *new TMenuItem("Maximize/Restore", cmZoom, 'F', hcNoContext, "~F~") +
         newLine() +
         ( *new TSubMenu("~M~ore...", kbNoKey, hcMenu) +
             *new TMenuItem("~C~hange working dir...", cmChangeDir, kbNoKey) +
             newLine() +
-            *new TMenuItem("Maximi~z~e/Restore", cmZoom, kbNoKey) +
             *new TMenuItem("C~a~scade", cmCascade, kbNoKey) +
             *new TMenuItem("~G~rab Input", cmGrabInput, kbNoKey)
         ) +
