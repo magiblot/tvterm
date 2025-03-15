@@ -4,15 +4,11 @@
 #include <stddef.h>
 
 #if !defined(_WIN32)
-#   include <sys/types.h>
+#include <sys/types.h>
 #else
-#   ifndef NOMINMAX
-#       define NOMINMAX
-#   endif
-#   include <tvision/compat/windows/windows.h>
-#   ifdef small
-#       undef small
-#   endif
+// Use Turbo Vision's windows.h, which omits several unneeded or unwanted
+// definitions.
+#include <tvision/compat/windows/windows.h>
 #endif
 
 template <class T>
