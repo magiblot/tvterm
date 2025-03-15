@@ -3,26 +3,51 @@ name: Build
 on: [push, pull_request]
 
 jobs:
-  build-linux-gcc:
-    name: Linux (GCC 8)
-    runs-on: ubuntu-20.04
+  build-linux-gcc7:
+    name: Linux (GCC 7)
+    runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
       with:
         submodules: 'recursive'
 
     - name: Install Dependencies
-      run: sudo apt -y install libncursesw5-dev g++-8 libvterm-dev libasio-dev
+      run: |
+        # Add legacy repositories required by g++-7
+        sudo tee --append /etc/apt/sources.list << EOF
+          deb http://us.archive.ubuntu.com/ubuntu/ bionic universe
+          deb http://us.archive.ubuntu.com/ubuntu/ bionic main
+        EOF
+        sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 3B4FE6ACC0B21F32
+        sudo apt-get update
+        sudo apt-get -y install g++-7
 
     - name: Configure CMake
       shell: bash
       env:
-        CC: gcc-8
-        CXX: g++-8
-      run: cmake . -DCMAKE_BUILD_TYPE=Debug -DTVTERM_OPTIMIZE_BUILD=OFF -DCMAKE_CXX_FLAGS="-std=c++14"
+        CC: gcc-7
+        CXX: g++-7
+      run: cmake . -DCMAKE_BUILD_TYPE=Release
 
     - name: Build
       shell: bash
       run: cmake --build . -j$(nproc)
 
+  build-linux-clang:
+    name: Linux (Clang)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: 'recursive'
 
+    - name: Configure CMake
+      shell: bash
+      env:
+        CC: clang
+        CXX: clang++
+      run: cmake . -DCMAKE_BUILD_TYPE=Release -DTVTERM_OPTIMIZE_BUILD=OFF
+
+    - name: Build
+      shell: bash
+      run: cmake --build . -j$(nproc)
