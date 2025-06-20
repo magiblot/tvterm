@@ -32,9 +32,6 @@ target_include_directories(tvterm-core PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/include>"
     "$<INSTALL_INTERFACE:include>"
 )
-target_include_directories(tvterm-core PRIVATE
-    "${CMAKE_CURRENT_LIST_DIR}/source/tvterm-core"
-)
 target_link_libraries(tvterm-core PUBLIC
     tvision
     vterm

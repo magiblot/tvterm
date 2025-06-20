@@ -1,6 +1,8 @@
 #ifndef TVTERM_UTIL_H
 #define TVTERM_UTIL_H
 
+#include <tvision/tv.h>
+
 // https://stackoverflow.com/a/60166119
 
 template <class T, T>

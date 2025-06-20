@@ -11,6 +11,7 @@
 #include <sys/ioctl.h>
 #include <sys/wait.h>
 #include <termios.h>
+#include <errno.h>
 
 #if __has_include(<pty.h>)
 #   include <pty.h>
