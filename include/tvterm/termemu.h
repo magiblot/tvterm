@@ -87,6 +87,8 @@ struct TerminalState
 
     bool titleChanged {false};
     GrowArray title;
+
+    bool mouseEnabled {false};
 };
 
 enum class TerminalEventType

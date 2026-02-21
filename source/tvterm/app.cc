@@ -152,6 +152,7 @@ void TVTermApp::openMenu()
     TMenuItem &menuItems =
         *new TMenuItem("New Term", cmNewTerm, 'N', hcNoContext, "~N~") +
         *new TMenuItem("Close Term", cmClose, 'W', hcNoContext, "~W~") +
+        *new TMenuItem("~C~opy Selection", cmCopySelection, kbNoKey) +
         newLine() +
         *new TMenuItem("Next Term", cmNext, kbTab, hcNoContext, "~Tab~") +
         *new TMenuItem("Previous Term", cmPrev, kbShiftTab, hcNoContext, "~Shift-Tab~") +

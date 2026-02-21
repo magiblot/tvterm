@@ -345,6 +345,7 @@ void VTermEmulator::updateState(TerminalState &state) noexcept
         state.titleChanged = true;
         state.title = std::move(localState.title);
     }
+    state.mouseEnabled = localState.mouseEnabled;
 }
 
 TPoint VTermEmulator::getSize() noexcept

@@ -9,6 +9,7 @@ enum : ushort
     cmReleaseInput,
     cmTileCols,
     cmTileRows,
+    cmCopySelection,
     // Commands that cannot be deactivated.
     cmNewTerm = 1000,
     cmCheckTerminalUpdates,

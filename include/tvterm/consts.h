@@ -8,15 +8,16 @@ struct TVTermConstants
 {
     ushort cmCheckTerminalUpdates;
     ushort cmTerminalUpdated;
-    // Focused commands
+    // Focused commands (enabled/disabled on window focus)
     ushort cmGrabInput;
     ushort cmReleaseInput;
+    ushort cmCopySelection;
     // Help contexts
     ushort hcInputGrabbed;
 
     TSpan<const ushort> focusedCmds() const
     {
-        return {&cmGrabInput, size_t(&cmReleaseInput + 1 - &cmGrabInput)};
+        return {&cmGrabInput, size_t(&cmCopySelection + 1 - &cmGrabInput)};
     }
 };
 

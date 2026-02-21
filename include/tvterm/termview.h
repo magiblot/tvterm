@@ -20,9 +20,25 @@ class TerminalView : public TView
     const TVTermConstants &consts;
     bool ownerBufferChanged {false};
 
+    // Selection state (main thread only, no sync needed)
+    struct Selection
+    {
+        TPoint anchor {0, 0};
+        TPoint current {0, 0};
+        bool active {false};    // drag in progress
+        bool valid {false};     // completed selection exists
+    };
+
+    Selection selection;
+    bool cachedMouseEnabled {false};
+
     void handleMouse(ushort what, MouseEventType mouse) noexcept;
+    void handleSelectionMouse(ushort what, TPoint localPos) noexcept;
     void updateCursor(TerminalState &state) noexcept;
     void updateDisplay(TerminalSurface &surface) noexcept;
+    void applySelectionHighlight(TerminalSurface &surface) noexcept;
+    void normalizeSelection(TPoint &start, TPoint &end) const noexcept;
+    void clearSelection() noexcept;
     bool canReuseOwnerBuffer() noexcept;
 
 public:
@@ -39,6 +55,8 @@ public:
     void setState(ushort aState, bool enable) override;
     void handleEvent(TEvent &ev) override;
     void draw() override;
+
+    void copySelection() noexcept;
 };
 
 } // namespace tvterm

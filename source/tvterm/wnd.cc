@@ -10,6 +10,7 @@ const tvterm::TVTermConstants TerminalWindow::appConsts =
     cmTerminalUpdated,
     cmGrabInput,
     cmReleaseInput,
+    cmCopySelection,
     hcInputGrabbed,
 };
 
