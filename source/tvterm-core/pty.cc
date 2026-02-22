@@ -8,10 +8,13 @@
 #include <unistd.h>
 #include <signal.h>
 #include <fcntl.h>
+#include <spawn.h>
 #include <sys/ioctl.h>
 #include <sys/wait.h>
 #include <termios.h>
 #include <errno.h>
+#include <string>
+#include <vector>
 
 #if __has_include(<pty.h>)
 #   include <pty.h>
@@ -21,11 +24,18 @@
 #   include <util.h>
 #endif
 
+extern char **environ;
+
 namespace tvterm
 {
 
 static struct termios createTermios() noexcept;
 static struct winsize createWinsize(TPoint size) noexcept;
+static bool spawnPtyClient( int masterFd, int slaveFd, pid_t &clientPid,
+                           TSpan<const EnvironmentVar> customEnvironment ) noexcept;
+static std::vector<std::string> buildEnvironment(
+    TSpan<const EnvironmentVar> customEnvironment ) noexcept;
+static const char *findEnvironmentValue(const std::vector<std::string> &env, const char *name) noexcept;
 
 bool createPty( PtyDescriptor &ptyDescriptor, TPoint size,
                 TSpan<const EnvironmentVar> customEnvironment,
@@ -33,44 +43,150 @@ bool createPty( PtyDescriptor &ptyDescriptor, TPoint size,
 {
     auto termios = createTermios();
     auto winsize = createWinsize(size);
-    int masterFd;
-    pid_t clientPid = forkpty(&masterFd, nullptr, &termios, &winsize);
-    if (clientPid == 0)
+    int masterFd = -1, slaveFd = -1;
+    if (openpty(&masterFd, &slaveFd, nullptr, &termios, &winsize) == -1)
     {
-        // Use the default ISIG signal handlers.
-        signal(SIGINT,  SIG_DFL);
-        signal(SIGQUIT, SIG_DFL);
-        signal(SIGSTOP, SIG_DFL);
-        signal(SIGCONT, SIG_DFL);
-
-        for (const auto &envVar : customEnvironment)
-            setenv(envVar.name, envVar.value, 1);
-
-        char *shell = getenv("SHELL");
-        char *args[] = {shell, nullptr};
-        execvp(shell, args);
-
-        setbuf(stderr, nullptr); // Ensure 'stderr' is unbuffered.
-        fprintf(
-            stderr,
-            "\x1B[1;31m" // Color attributes: bold and red.
-            "Error: Failed to execute the program specified by the environment variable SHELL ('%s'): %s"
-            "\x1B[0m", // Reset color attributes.
-            (shell ? shell : ""),
-            strerror(errno)
-        );
-
-        // Exit the subprocess without cleaning up resources.
-        _Exit(EXIT_FAILURE);
-    }
-    else if (clientPid == -1)
-    {
-        char *str = formatStr("forkpty failed: %s", strerror(errno));
+        char *str = formatStr("openpty failed: %s", strerror(errno));
         onError(str);
         delete[] str;
         return false;
     }
+
+    pid_t clientPid = -1;
+    if (!spawnPtyClient(masterFd, slaveFd, clientPid, customEnvironment))
+    {
+        int err = errno;
+        close(masterFd);
+        close(slaveFd);
+        char *str = formatStr("pty child spawn failed: %s", strerror(err));
+        onError(str);
+        delete[] str;
+        return false;
+    }
+
+    close(slaveFd);
     ptyDescriptor = {masterFd, clientPid};
+    return true;
+}
+
+static std::vector<std::string> buildEnvironment(
+    TSpan<const EnvironmentVar> customEnvironment ) noexcept
+{
+    std::vector<std::string> env;
+    std::vector<bool> customUsed(customEnvironment.size(), false);
+
+    for (char **p = environ; p && *p; ++p)
+    {
+        const char *entry = *p;
+        const char *eq = strchr(entry, '=');
+        if (!eq)
+            continue;
+
+        size_t nameLen = size_t(eq - entry);
+        bool replaced = false;
+        for (size_t i = 0; i < customEnvironment.size(); ++i)
+        {
+            const auto &envVar = customEnvironment[i];
+            if (strlen(envVar.name) == nameLen &&
+                strncmp(entry, envVar.name, nameLen) == 0)
+            {
+                env.emplace_back(std::string(envVar.name) + "=" + envVar.value);
+                customUsed[i] = true;
+                replaced = true;
+                break;
+            }
+        }
+        if (!replaced)
+            env.emplace_back(entry);
+    }
+
+    for (size_t i = 0; i < customEnvironment.size(); ++i)
+        if (!customUsed[i])
+            env.emplace_back(std::string(customEnvironment[i].name) + "=" +
+                             customEnvironment[i].value);
+
+    return env;
+}
+
+static const char *findEnvironmentValue(const std::vector<std::string> &env,
+                                        const char *name) noexcept
+{
+    size_t nameLen = strlen(name);
+    for (const auto &entry : env)
+        if (entry.size() > nameLen &&
+            entry.compare(0, nameLen, name) == 0 &&
+            entry[nameLen] == '=')
+            return entry.c_str() + nameLen + 1;
+    return nullptr;
+}
+
+static void setDefaultSignalHandler(int signum) noexcept
+{
+    struct sigaction sa = {};
+    sa.sa_handler = SIG_DFL;
+    sigemptyset(&sa.sa_mask);
+    sigaction(signum, &sa, nullptr);
+}
+
+static bool spawnPtyClient( int masterFd, int slaveFd, pid_t &clientPid,
+                           TSpan<const EnvironmentVar> customEnvironment ) noexcept
+{
+    auto envStorage = buildEnvironment(customEnvironment);
+    const char *shell = findEnvironmentValue(envStorage, "SHELL");
+    if (!shell || !*shell)
+        shell = "/bin/sh";
+
+    std::vector<char *> envp;
+    envp.reserve(envStorage.size() + 1);
+    for (auto &entry : envStorage)
+        envp.push_back(&entry[0]);
+    envp.push_back(nullptr);
+
+    char *args[] = {const_cast<char *>(shell), nullptr};
+
+    pid_t pid = vfork();
+    if (pid == -1)
+        return false;
+    if (pid == 0)
+    {
+        // Child path: avoid non-essential libc work before exec.
+        if (setsid() == -1)
+            goto exec_fail;
+
+#ifdef TIOCSCTTY
+        if (ioctl(slaveFd, TIOCSCTTY, 0) == -1)
+            goto exec_fail;
+#endif
+
+        setDefaultSignalHandler(SIGINT);
+        setDefaultSignalHandler(SIGQUIT);
+        setDefaultSignalHandler(SIGSTOP);
+        setDefaultSignalHandler(SIGCONT);
+
+        if (dup2(slaveFd, STDIN_FILENO) == -1 ||
+            dup2(slaveFd, STDOUT_FILENO) == -1 ||
+            dup2(slaveFd, STDERR_FILENO) == -1)
+            goto exec_fail;
+
+        close(masterFd);
+        if (slaveFd > STDERR_FILENO)
+            close(slaveFd);
+
+        execve(shell, args, envp.data());
+
+exec_fail:
+        dprintf(
+            STDERR_FILENO,
+            "\x1B[1;31m"
+            "Error: Failed to execute the program specified by the environment variable SHELL ('%s'): %s"
+            "\x1B[0m",
+            (shell ? shell : ""),
+            strerror(errno)
+        );
+        _Exit(EXIT_FAILURE);
+    }
+
+    clientPid = pid;
     return true;
 }
 
