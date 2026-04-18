@@ -41,6 +41,8 @@ private:
         TSpan<const VTermScreenCell> top() const;
     };
 
+public:
+
     struct LocalState
     {
         bool cursorChanged {false};
@@ -53,7 +55,10 @@ private:
 
         bool mouseEnabled {false};
         bool altScreenEnabled {false};
+        bool win32InputEnabled {false};
     };
+
+private:
 
     struct VTerm *vt;
     struct VTermState *vtState;
