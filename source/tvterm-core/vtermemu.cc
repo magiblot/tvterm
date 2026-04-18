@@ -168,7 +168,7 @@ namespace vtermemu
         {
             uint vk = tvToWin32KeyCode(tvKey.code);
             uint cs = tvToWin32ControlState(keyDown.controlKeyState);
-            uint uc = utf8To32(keyDown.getText());
+            uint uc = (keyDown.textLength > 0) ? utf8To32(keyDown.getText()) : 0;
             vterm_keyboard_win32(vt, vk, 0, uc, 1, cs, 1);
             vterm_keyboard_win32(vt, vk, 0, uc, 0, cs, 1);
             return;
