@@ -147,6 +147,17 @@ namespace vtermemu
             case kbEnter: return 0x0D; // VK_RETURN
             case kbEsc:   return 0x1B; // VK_ESCAPE
             case ' ':     return 0x20; // VK_SPACE
+            case '-': case kbAltMinus: return 0xBD; // VK_OEM_MINUS
+            case '=': case kbAltEqual: return 0xBB; // VK_OEM_PLUS
+            case '[': return 0xDB; // VK_OEM_4
+            case ']': return 0xDD; // VK_OEM_6
+            case '\\': return 0xDC; // VK_OEM_5
+            case ';': return 0xBA; // VK_OEM_1
+            case '\'': return 0xDE; // VK_OEM_7
+            case ',': return 0xBC; // VK_OEM_COMMA
+            case '.': return 0xBE; // VK_OEM_PERIOD
+            case '/': return 0xBF; // VK_OEM_2
+            case '`': return 0xC0; // VK_OEM_3
         }
         return 0;
     }
