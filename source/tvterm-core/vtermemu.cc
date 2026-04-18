@@ -94,9 +94,75 @@ namespace vtermemu
                                                        0 ;
     }
 
-    static void processKey(VTerm *vt, KeyDownEvent keyDown)
+    // Reverse Mapping: Turbo Vision -> Win32
+    static uint tvToWin32ControlState(ushort controlKeyState)
+    {
+        uint cs = 0;
+        if (controlKeyState & kbShift)      cs |= 0x0010; // SHIFT_PRESSED
+        if (controlKeyState & kbLeftCtrl)   cs |= 0x0008; // LEFT_CTRL_PRESSED
+        if (controlKeyState & kbRightCtrl)  cs |= 0x0004; // RIGHT_CTRL_PRESSED
+        if (controlKeyState & kbLeftAlt)    cs |= 0x0002; // LEFT_ALT_PRESSED
+        if (controlKeyState & kbRightAlt)   cs |= 0x0001; // RIGHT_ALT_PRESSED
+        if (controlKeyState & kbScrollState) cs |= 0x0040; // SCROLLLOCK_ON
+        if (controlKeyState & kbNumState)    cs |= 0x0020; // NUMLOCK_ON
+        if (controlKeyState & kbCapsState)   cs |= 0x0080; // CAPSLOCK_ON
+        if (controlKeyState & kbEnhanced)    cs |= 0x0100; // ENHANCED_KEY
+        return cs;
+    }
+
+    static ushort tvToWin32KeyCode(ushort keyCode)
+    {
+        // Handle Alphanumeric
+        if (keyCode >= 'a' && keyCode <= 'z') return keyCode - 'a' + 'A';
+        if (keyCode >= 'A' && keyCode <= 'Z') return keyCode;
+        if (keyCode >= '0' && keyCode <= '9') return keyCode;
+
+        // Handle Special Keys
+        switch (keyCode)
+        {
+            case kbUp:    return 0x26; // VK_UP
+            case kbDown:  return 0x28; // VK_DOWN
+            case kbLeft:  return 0x25; // VK_LEFT
+            case kbRight: return 0x27; // VK_RIGHT
+            case kbHome:  return 0x24; // VK_HOME
+            case kbEnd:   return 0x23; // VK_END
+            case kbPgUp:  return 0x21; // VK_PRIOR
+            case kbPgDn:  return 0x22; // VK_NEXT
+            case kbIns:   return 0x2D; // VK_INSERT
+            case kbDel:   return 0x2E; // VK_DELETE
+            case kbF1:    return 0x70; // VK_F1
+            case kbF2:    return 0x71;
+            case kbF3:    return 0x72;
+            case kbF4:    return 0x73;
+            case kbF5:    return 0x74;
+            case kbF6:    return 0x75;
+            case kbF7:    return 0x76;
+            case kbF8:    return 0x77;
+            case kbF9:    return 0x78;
+            case kbF10:   return 0x79;
+            case kbF11:   return 0x7A;
+            case kbF12:   return 0x7B;
+            case kbBack:  return 0x08; // VK_BACK
+            case kbTab:   return 0x09; // VK_TAB
+            case kbEnter: return 0x0D; // VK_RETURN
+            case kbEsc:   return 0x1B; // VK_ESCAPE
+            case ' ':     return 0x20; // VK_SPACE
+        }
+        return 0;
+    }
+    static void processKey(VTerm *vt, KeyDownEvent keyDown, const VTermEmulator::LocalState &state)
     {
         TKey tvKey(keyDown);
+        if (state.win32InputEnabled)
+        {
+            uint vk = tvToWin32KeyCode(tvKey.code);
+            uint cs = tvToWin32ControlState(keyDown.controlKeyState);
+            uint uc = utf8To32(keyDown.getText());
+            vterm_keyboard_win32(vt, vk, 0, uc, 1, cs, 1);
+            vterm_keyboard_win32(vt, vk, 0, uc, 0, cs, 1);
+            return;
+        }
+
         VTermModifier vtMod = convMod(tvKey.mods);
         // Pass control characters directly, with no modifiers.
         if ( tvKey.mods == kbCtrlShift
@@ -291,7 +357,7 @@ void VTermEmulator::handleEvent(const TerminalEvent &event) noexcept
     switch (event.type)
     {
         case TerminalEventType::KeyDown:
-            processKey(vt, event.keyDown);
+            processKey(vt, event.keyDown, localState);
             break;
 
         case TerminalEventType::Mouse:
@@ -446,6 +512,9 @@ int VTermEmulator::settermprop(VTermProp prop, VTermValue *val)
             break;
         case VTERM_PROP_ALTSCREEN:
             localState.altScreenEnabled = val->boolean;
+            break;
+        case VTERM_PROP_WIN32INPUT:
+            localState.win32InputEnabled = val->boolean;
             break;
         default:
             return false;
