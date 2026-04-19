@@ -4,6 +4,7 @@
 #include <tvterm/termemu.h>
 #include <utility>
 #include <memory>
+#include <deque>
 
 #include <vterm.h>
 
@@ -23,6 +24,8 @@ class VTermEmulator final : public TerminalEmulator
 {
 public:
 
+    enum { mouseWheelScrollLines = 3 };
+
     VTermEmulator(TPoint size, Writer &aClientDataWriter) noexcept;
     ~VTermEmulator();
 
@@ -31,14 +34,25 @@ public:
 
 private:
 
-    struct LineStack
+    struct Scrollback
     {
         enum { maxSize = 10000 };
 
-        std::vector<std::pair<std::unique_ptr<const VTermScreenCell[]>, size_t>> stack;
-        void push(size_t cols, const VTermScreenCell *cells);
-        bool pop(const VTermEmulator &vterm, size_t cols, VTermScreenCell *cells);
-        TSpan<const VTermScreenCell> top() const;
+        struct Line
+        {
+            std::unique_ptr<const VTermScreenCell[]> cells;
+            int cols;
+            bool continuation;
+        };
+
+        std::deque<Line> lines;
+        int offset {0}; // 0 (oldest line) to lines.size() - 1 (newest line), or lines.size() (no scrollback).
+
+        void pushLine(int cols, const VTermScreenCell *cells, bool continuation);
+        void incrementOffset(int count);
+        void followTerminal();
+        int getVisibleScrollLines(int terminalHeight) const;
+        int numLines() const;
     };
 
     struct LocalState
@@ -53,6 +67,9 @@ private:
 
         bool mouseEnabled {false};
         bool altScreenEnabled {false};
+
+        int scrollOffset {0};
+        int visibleScrollLines {0};
     };
 
     struct VTerm *vt;
@@ -61,14 +78,16 @@ private:
     Writer &clientDataWriter;
     std::vector<TerminalSurface::RowDamage> damageByRow;
     GrowArray strFragBuf;
-    LineStack linestack;
     LocalState localState;
+    Scrollback scrollback;
 
     static const VTermScreenCallbacks callbacks;
 
     TPoint getSize() noexcept;
     void setSize(TPoint size) noexcept;
     void drawDamagedArea(TerminalSurface &surface) noexcept;
+    void handleScrollbackWheel(uchar wheel) noexcept;
+    void drawScrollbackLine(TerminalSurface &surface, int y) noexcept;
 
     void writeOutput(const char *data, size_t size);
     int damage(VTermRect rect);
@@ -77,17 +96,10 @@ private:
     int settermprop(VTermProp prop, VTermValue *val);
     int bell();
     int resize(int rows, int cols);
-    int sb_pushline(int cols, const VTermScreenCell *cells);
-    int sb_popline(int cols, VTermScreenCell *cells);
+    int sb_pushline4(int cols, const VTermScreenCell *cells, bool continuation);
 
     VTermScreenCell getDefaultCell() const;
 };
-
-inline TSpan<const VTermScreenCell> VTermEmulator::LineStack::top() const
-{
-    auto &pair = stack.back();
-    return {pair.first.get(), pair.second};
-}
 
 } // namespace tvterm
 

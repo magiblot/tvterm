@@ -19,8 +19,10 @@ const VTermScreenCallbacks VTermEmulator::callbacks =
     _static_wrap(&VTermEmulator::settermprop),
     _static_wrap(&VTermEmulator::bell),
     _static_wrap(&VTermEmulator::resize),
-    _static_wrap(&VTermEmulator::sb_pushline),
-    _static_wrap(&VTermEmulator::sb_popline),
+    /* sb_pushline */ nullptr,
+    /* sb_popline */ nullptr,
+    /* sb_clear */ nullptr,
+    _static_wrap(&VTermEmulator::sb_pushline4),
 };
 
 namespace vtermemu
@@ -144,7 +146,7 @@ namespace vtermemu
             case mwLeft: key = VTERM_KEY_LEFT; break;
             case mwRight: key = VTERM_KEY_RIGHT; break;
         }
-        for (int i = 0; i < 3; ++i)
+        for (int i = 0; i < VTermEmulator::mouseWheelScrollLines; ++i)
             vterm_keyboard_key(vt, key, VTERM_MOD_NONE);
     }
 
@@ -219,7 +221,7 @@ namespace vtermemu
     }
 
     static void drawLine( TerminalSurface &surface, VTermScreen *vtScreen,
-                          int y, int begin, int end )
+                          int y, int rowIndex, int begin, int end )
     // Pre: the area must be within bounds.
     {
         dout << "drawLine(" << y << ", " << begin << ", " << end << ")" << std::endl;
@@ -227,7 +229,7 @@ namespace vtermemu
         for (int x = begin; x < end; ++x)
         {
             VTermScreenCell cell;
-            if (vterm_screen_get_cell(vtScreen, {y, x}, &cell))
+            if (vterm_screen_get_cell(vtScreen, {rowIndex, x}, &cell))
                 convCell(cells, x, cell);
             else
                 cells[x] = {};
@@ -273,6 +275,11 @@ VTermEmulator::VTermEmulator(TPoint size, Writer &aClientDataWriter) noexcept :
     vterm_screen_set_damage_merge(vtScreen, VTERM_DAMAGE_SCROLL);
     vterm_screen_reset(vtScreen, true);
 
+    vterm_screen_callbacks_has_pushline4(vtScreen);
+    // This cannot be enabled yet, it will easily crash (e.g. shrink the terminal window
+    // while running an alternate buffer application):
+    // vterm_screen_enable_reflow(vtScreen, true);
+
     vterm_output_set_callback(vt, _static_wrap(&VTermEmulator::writeOutput), this);
 
     // VTerm's cursor blinks by default, but it shouldn't.
@@ -292,6 +299,7 @@ void VTermEmulator::handleEvent(const TerminalEvent &event) noexcept
     {
         case TerminalEventType::KeyDown:
             processKey(vt, event.keyDown);
+            scrollback.followTerminal();
             break;
 
         case TerminalEventType::Mouse:
@@ -299,6 +307,8 @@ void VTermEmulator::handleEvent(const TerminalEvent &event) noexcept
                 processMouse(vt, event.mouse.what, event.mouse.mouse);
             else if (localState.altScreenEnabled && event.mouse.what == evMouseWheel)
                 wheelToArrow(vt, event.mouse.mouse.wheel);
+            else if (event.mouse.what == evMouseWheel)
+                handleScrollbackWheel(event.mouse.mouse.wheel);
             break;
 
         case TerminalEventType::ClientDataRead:
@@ -373,13 +383,34 @@ void VTermEmulator::drawDamagedArea(TerminalSurface &surface) noexcept
     TPoint size = getSize();
     if (surface.size != size)
         surface.resize(size);
-    for (int y = 0; y < size.y; ++y)
+
+    int visibleScrollLines = scrollback.getVisibleScrollLines(size.y);
+    bool scrollbackChanged = ( scrollback.offset != localState.scrollOffset ||
+                               visibleScrollLines != localState.visibleScrollLines );
+    localState.scrollOffset = scrollback.offset;
+    localState.visibleScrollLines = visibleScrollLines;
+
+    if (scrollbackChanged)
+        for (int y = 0; y < visibleScrollLines; ++y)
+            drawScrollbackLine(surface, y);
+
+    for (int y = visibleScrollLines; y < size.y; ++y)
     {
-        auto &damage = damageByRow[y];
+        int rowIndex = y - visibleScrollLines;
+
+        auto &damage = damageByRow[rowIndex];
         int begin = max(damage.begin, 0);
         int end = min(damage.end, size.x);
+
+        if (scrollbackChanged)
+        {
+            begin = 0;
+            end = size.x;
+        }
+
         if (begin < end)
-            drawLine(surface, vtScreen, y, begin, end);
+            drawLine(surface, vtScreen, y, rowIndex, begin, end);
+
         damage = {};
     }
 }
@@ -446,6 +477,7 @@ int VTermEmulator::settermprop(VTermProp prop, VTermValue *val)
             break;
         case VTERM_PROP_ALTSCREEN:
             localState.altScreenEnabled = val->boolean;
+            scrollback.followTerminal();
             break;
         default:
             return false;
@@ -464,15 +496,37 @@ int VTermEmulator::resize(int rows, int cols)
     return false;
 }
 
-int VTermEmulator::sb_pushline(int cols, const VTermScreenCell *cells)
+int VTermEmulator::sb_pushline4(int cols, const VTermScreenCell *cells, bool continuation)
 {
-    linestack.push(std::max(cols, 0), cells);
+    if (!localState.altScreenEnabled)
+        scrollback.pushLine(cols, cells, continuation);
     return true;
 }
 
-int VTermEmulator::sb_popline(int cols, VTermScreenCell *cells)
+void VTermEmulator::handleScrollbackWheel(uchar wheel) noexcept
 {
-    return linestack.pop(*this, std::max(cols, 0), cells);
+    if (wheel == mwUp)
+        scrollback.incrementOffset(-mouseWheelScrollLines);
+    else if (wheel == mwDown)
+        scrollback.incrementOffset(mouseWheelScrollLines);
+}
+
+void VTermEmulator::drawScrollbackLine(TerminalSurface &surface, int y) noexcept
+{
+    using namespace vtermemu;
+    int lineIndex = scrollback.offset + y;
+    auto &line = scrollback.lines[lineIndex];
+
+    TSpan<TScreenCell> rowCells(&surface.at(y, 0), surface.size.x);
+    VTermScreenCell defCell = getDefaultCell();
+    for (int x = 0; x < (int) rowCells.size(); ++x)
+    {
+        if (x < line.cols)
+            convCell(rowCells, x, line.cells.get()[x]);
+        else
+            convCell(rowCells, x, defCell);
+    }
+    surface.addDamageAtRow(y, 0, rowCells.size());
 }
 
 inline VTermScreenCell VTermEmulator::getDefaultCell() const
@@ -483,32 +537,49 @@ inline VTermScreenCell VTermEmulator::getDefaultCell() const
     return cell;
 }
 
-void VTermEmulator::LineStack::push(size_t cols, const VTermScreenCell *src)
+void VTermEmulator::Scrollback::pushLine(int cols, const VTermScreenCell *src, bool continuation)
 {
-    if (stack.size() < maxSize)
+    bool isFollowingTerminal = (offset == numLines());
+
+    if (numLines() >= maxSize)
     {
-        auto *line = new VTermScreenCell[cols];
-        memcpy(line, src, sizeof(VTermScreenCell)*cols);
-        stack.emplace_back(line, cols);
+        lines.pop_front();
+        if (isFollowingTerminal)
+            offset = max(offset - 1, 0);
     }
+
+    auto *line = new VTermScreenCell[cols];
+    memcpy(line, src, sizeof(VTermScreenCell)*cols);
+    lines.push_back({std::unique_ptr<const VTermScreenCell[]>(line), cols, continuation});
+
+    if (isFollowingTerminal)
+        offset = numLines();
 }
 
-bool VTermEmulator::LineStack::pop( const VTermEmulator &vterm,
-                                    size_t cols, VTermScreenCell *dst )
+void VTermEmulator::Scrollback::incrementOffset(int count)
+// count < 0: show older lines
+// count > 0: show newer lines
 {
-    if (!stack.empty())
-    {
-        auto line = top();
-        size_t dst_size = cols*sizeof(VTermScreenCell);
-        size_t copy_bytes = std::min(line.size_bytes(), dst_size);
-        memcpy(dst, line.data(), copy_bytes);
-        auto cell = vterm.getDefaultCell();
-        for (size_t i = line.size(); i < cols; ++i)
-            dst[i] = cell;
-        stack.pop_back();
-        return true;
-    }
-    return false;
+    if (count < 0)
+        offset = max(offset + count, 0);
+    else
+        offset = min(offset + count, numLines());
+}
+
+void VTermEmulator::Scrollback::followTerminal()
+{
+    offset = numLines();
+}
+
+int VTermEmulator::Scrollback::getVisibleScrollLines(int terminalHeight) const
+{
+    int available = max(numLines() - offset, 0);
+    return min(available, terminalHeight);
+}
+
+int VTermEmulator::Scrollback::numLines() const
+{
+    return lines.size();
 }
 
 } // namespace tvterm
