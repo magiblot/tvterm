@@ -76,6 +76,9 @@ inline void TerminalSurface::addDamageAtRow(size_t y, int begin, int end)
     };
 }
 
+// Struct that allows the terminal state to be reported from the TerminalEmulator
+// to the TerminalController (and from there to the TerminalView, etc.)
+
 struct TerminalState
 {
     TerminalSurface surface;
@@ -87,6 +90,11 @@ struct TerminalState
 
     bool titleChanged {false};
     GrowArray title;
+
+    bool scrollbackChanged {false};
+    int scrollbackOffset {0}; // 0 (oldest) to 'scrollbackLimit' (no scrollback shown)
+    int scrollbackLimit {0};
+    bool scrollbackEnabled {true};
 };
 
 enum class TerminalEventType
@@ -96,6 +104,7 @@ enum class TerminalEventType
     ClientDataRead,
     ViewportResize,
     FocusChange,
+    ScrollBackOffsetChange,
 };
 
 struct MouseEvent
@@ -120,6 +129,11 @@ struct FocusChangeEvent
     bool focusEnabled;
 };
 
+struct ScrollBackOffsetChangeEvent
+{
+    int offset;
+};
+
 struct TerminalEvent
 {
     TerminalEventType type;
@@ -130,6 +144,7 @@ struct TerminalEvent
         ClientDataReadEvent clientDataRead;
         ViewportResizeEvent viewportResize;
         FocusChangeEvent focusChange;
+        ScrollBackOffsetChangeEvent scrollBackOffsetChange;
     };
 };
 
@@ -139,7 +154,11 @@ public:
 
     virtual ~TerminalEmulator() = default;
 
+    // Gets called whenever the user interacts with the terminal or the
+    // client process sends data.
     virtual void handleEvent(const TerminalEvent &event) noexcept = 0;
+    // Gets called shortly after 'handleEvent()', so that any changes that
+    // may have occurred can be reported via the TerminalState.
     virtual void updateState(TerminalState &state) noexcept = 0;
 };
 

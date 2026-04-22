@@ -34,6 +34,11 @@ public:
 
 private:
 
+    // The scrollback consists of a list of lines that were pushed out of the
+    // terminal area (via the 'sb_pushline4' callback) and that, therefore,
+    // can never again be updated by the client application.
+    // Scrollback lines preserve their original width even if the terminal
+    // gets resized.
     struct Scrollback
     {
         enum { maxSize = 10000 };
@@ -42,15 +47,17 @@ private:
         {
             std::unique_ptr<const VTermScreenCell[]> cells;
             int cols;
-            bool continuation;
+            bool continuation; // is 'lines[i]' the continuation of 'lines[i - 1]'?
         };
 
         std::deque<Line> lines;
         int offset {0}; // 0 (oldest line) to lines.size() - 1 (newest line), or lines.size() (no scrollback).
 
-        void pushLine(int cols, const VTermScreenCell *cells, bool continuation);
+        bool pushLine(int cols, const VTermScreenCell *cells, bool continuation);
         void incrementOffset(int count);
+        void setOffset(int newOffset);
         void followTerminal();
+        bool isFollowingTerminal() const;
         int getVisibleScrollLines(int terminalHeight) const;
         int numLines() const;
     };
@@ -70,12 +77,14 @@ private:
 
         int scrollOffset {0};
         int visibleScrollLines {0};
+        bool scrollOverflowed {false};
     };
 
     struct VTerm *vt;
     struct VTermState *vtState;
     struct VTermScreen *vtScreen;
     Writer &clientDataWriter;
+    // Keeps track of the screen regions that were updated in VTerm.
     std::vector<TerminalSurface::RowDamage> damageByRow;
     GrowArray strFragBuf;
     LocalState localState;
@@ -85,7 +94,7 @@ private:
 
     TPoint getSize() noexcept;
     void setSize(TPoint size) noexcept;
-    void drawDamagedArea(TerminalSurface &surface) noexcept;
+    void updateSurface(TerminalSurface &surface) noexcept;
     void handleScrollbackWheel(uchar wheel) noexcept;
     void drawScrollbackLine(TerminalSurface &surface, int y) noexcept;
 

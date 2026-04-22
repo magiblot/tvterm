@@ -4,15 +4,17 @@
 
 #define Uses_TKeys
 #define Uses_TEvent
+#define Uses_TScrollBar
 #include <tvision/tv.h>
 
 namespace tvterm
 {
 
 TerminalView::TerminalView( const TRect &bounds, TerminalController &aTermCtrl,
-                            const TVTermConstants &aConsts ) noexcept :
+                            const TVTermConstants &aConsts, TScrollBar *aScrollBar ) noexcept :
     TView(bounds),
     consts(aConsts),
+    scrollBar(aScrollBar),
     termCtrl(aTermCtrl)
 {
     growMode = gfGrowHiX | gfGrowHiY;
@@ -24,6 +26,12 @@ TerminalView::TerminalView( const TRect &bounds, TerminalController &aTermCtrl,
 TerminalView::~TerminalView()
 {
     termCtrl.shutDown();
+}
+
+void TerminalView::shutDown()
+{
+    scrollBar = nullptr;
+    TView::shutDown();
 }
 
 void TerminalView::changeBounds(const TRect& bounds)
@@ -64,6 +72,17 @@ void TerminalView::handleEvent(TEvent &ev)
             if ( ev.message.command == consts.cmCheckTerminalUpdates &&
                  termCtrl.stateHasBeenUpdated() )
                 drawView();
+            else if ( ev.message.command == cmScrollBarChanged &&
+                      ev.message.infoPtr == scrollBar && scrollBar )
+            {
+                // Handle scrollbar changes by sending a scroll event to the terminal
+                int newOffset = scrollBar->value;
+                TerminalEvent termEvent;
+                termEvent.type = TerminalEventType::ScrollBackOffsetChange;
+                termEvent.scrollBackOffsetChange = {newOffset};
+                termCtrl.sendEvent(termEvent);
+                clearEvent(ev);
+            }
             break;
 
         case evKeyDown:
@@ -110,6 +129,7 @@ void TerminalView::draw()
 {
     termCtrl.lockState([&] (auto &state) {
         updateCursor(state);
+        updateScrollBar(state);
         updateDisplay(state.surface);
 
         TerminalUpdatedMsg upd {*this, state};
@@ -124,7 +144,28 @@ void TerminalView::updateCursor(TerminalState &state) noexcept
         state.cursorChanged = false;
         setState(sfCursorVis, state.cursorVisible);
         setState(sfCursorIns, state.cursorBlink);
-        setCursor(state.cursorPos.x, state.cursorPos.y);
+
+        TPoint cursorPos = getCursorDisplayedPos(state);
+        setCursor(cursorPos.x, cursorPos.y);
+    }
+}
+
+void TerminalView::updateScrollBar(TerminalState &state) noexcept
+{
+    if (state.scrollbackChanged && scrollBar)
+    {
+        state.scrollbackChanged = false;
+
+        if (state.scrollbackEnabled)
+        {
+            scrollBar->setParams(state.scrollbackOffset, 0, state.scrollbackLimit, size.y, 1);
+            scrollBar->show();
+
+            TPoint cursorPos = getCursorDisplayedPos(state);
+            setCursor(cursorPos.x, cursorPos.y);
+        }
+        else
+            scrollBar->hide();
     }
 }
 
@@ -165,6 +206,14 @@ bool TerminalView::canReuseOwnerBuffer() noexcept
         return false;
     }
     return owner && owner->buffer;
+}
+
+TPoint TerminalView::getCursorDisplayedPos(TerminalState &state) noexcept
+{
+    TPoint cursorPos = state.cursorPos;
+    if (state.scrollbackEnabled)
+        cursorPos.y += state.scrollbackLimit - state.scrollbackOffset;
+    return cursorPos;
 }
 
 } // namespace tvterm

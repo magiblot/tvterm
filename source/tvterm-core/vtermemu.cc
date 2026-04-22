@@ -332,6 +332,10 @@ void VTermEmulator::handleEvent(const TerminalEvent &event) noexcept
                 vterm_state_focus_out(vtState);
             break;
 
+        case TerminalEventType::ScrollBackOffsetChange:
+            scrollback.setOffset(event.scrollBackOffsetChange.offset);
+            break;
+
         default:
             break;
     }
@@ -339,8 +343,8 @@ void VTermEmulator::handleEvent(const TerminalEvent &event) noexcept
 
 void VTermEmulator::updateState(TerminalState &state) noexcept
 {
-    vterm_screen_flush_damage(vtScreen);
-    drawDamagedArea(state.surface);
+    updateSurface(state.surface);
+
     if (localState.cursorChanged)
     {
         localState.cursorChanged = false;
@@ -349,11 +353,25 @@ void VTermEmulator::updateState(TerminalState &state) noexcept
         state.cursorVisible = localState.cursorVisible;
         state.cursorBlink = localState.cursorBlink;
     }
+
     if (localState.titleChanged)
     {
         localState.titleChanged = false;
         state.titleChanged = true;
         state.title = std::move(localState.title);
+    }
+
+    bool scrollbackChanged = ( scrollback.offset != state.scrollbackOffset ||
+                               scrollback.numLines() != state.scrollbackLimit ||
+                               !localState.altScreenEnabled != state.scrollbackEnabled );
+    if (scrollbackChanged)
+    {
+        state.scrollbackChanged = true;
+        state.scrollbackOffset = scrollback.offset;
+        state.scrollbackLimit = scrollback.numLines();
+        // Hide the scroll bar when in the alternate buffer so that it cannot
+        // be confused with the client application's content.
+        state.scrollbackEnabled = !localState.altScreenEnabled;
     }
 }
 
@@ -377,36 +395,48 @@ void VTermEmulator::setSize(TPoint size) noexcept
     }
 }
 
-void VTermEmulator::drawDamagedArea(TerminalSurface &surface) noexcept
+void VTermEmulator::updateSurface(TerminalSurface &surface) noexcept
 {
     using namespace vtermemu;
+    // Make sure the surface has the right size.
+    bool resized = false;
     TPoint size = getSize();
     if (surface.size != size)
+    {
+        resized = true; // The surface's previous contents have been lost.
         surface.resize(size);
+    }
 
+    // Draw the scrollback if it is visible.
     int visibleScrollLines = scrollback.getVisibleScrollLines(size.y);
-    bool scrollbackChanged = ( scrollback.offset != localState.scrollOffset ||
-                               visibleScrollLines != localState.visibleScrollLines );
+    bool scrollbackAreaChanged = (
+        scrollback.offset != localState.scrollOffset ||
+        visibleScrollLines != localState.visibleScrollLines ||
+        (localState.scrollOverflowed && scrollback.offset == 0)
+    );
     localState.scrollOffset = scrollback.offset;
     localState.visibleScrollLines = visibleScrollLines;
+    localState.scrollOverflowed = false;
 
-    if (scrollbackChanged)
+    // When the scrollback or the size change, everything needs to redrawn.
+    // Note that, unlike the terminal's display, the scrollback content's are
+    // immutable,
+    bool needsRedraw = scrollbackAreaChanged || resized;
+
+    if (needsRedraw)
         for (int y = 0; y < visibleScrollLines; ++y)
             drawScrollbackLine(surface, y);
+
+    // Draw the actual terminal display.
+    vterm_screen_flush_damage(vtScreen); // Calls 'VTermEmulator::damage()'.
 
     for (int y = visibleScrollLines; y < size.y; ++y)
     {
         int rowIndex = y - visibleScrollLines;
 
         auto &damage = damageByRow[rowIndex];
-        int begin = max(damage.begin, 0);
-        int end = min(damage.end, size.x);
-
-        if (scrollbackChanged)
-        {
-            begin = 0;
-            end = size.x;
-        }
+        int begin = needsRedraw ? 0 : max(damage.begin, 0);
+        int end = needsRedraw ? size.x : min(damage.end, size.x);
 
         if (begin < end)
             drawLine(surface, vtScreen, y, rowIndex, begin, end);
@@ -477,7 +507,8 @@ int VTermEmulator::settermprop(VTermProp prop, VTermValue *val)
             break;
         case VTERM_PROP_ALTSCREEN:
             localState.altScreenEnabled = val->boolean;
-            scrollback.followTerminal();
+            if (localState.altScreenEnabled)
+                scrollback.followTerminal();
             break;
         default:
             return false;
@@ -499,7 +530,8 @@ int VTermEmulator::resize(int rows, int cols)
 int VTermEmulator::sb_pushline4(int cols, const VTermScreenCell *cells, bool continuation)
 {
     if (!localState.altScreenEnabled)
-        scrollback.pushLine(cols, cells, continuation);
+        if (!scrollback.pushLine(cols, cells, continuation))
+            localState.scrollOverflowed = true;
     return true;
 }
 
@@ -537,14 +569,17 @@ inline VTermScreenCell VTermEmulator::getDefaultCell() const
     return cell;
 }
 
-void VTermEmulator::Scrollback::pushLine(int cols, const VTermScreenCell *src, bool continuation)
+bool VTermEmulator::Scrollback::pushLine(int cols, const VTermScreenCell *src, bool continuation)
 {
-    bool isFollowingTerminal = (offset == numLines());
+    // This must be checked before altering the number of lines.
+    bool following = isFollowingTerminal();
 
+    bool overflowed = false;
     if (numLines() >= maxSize)
     {
+        overflowed = true;
         lines.pop_front();
-        if (isFollowingTerminal)
+        if (!following)
             offset = max(offset - 1, 0);
     }
 
@@ -552,8 +587,10 @@ void VTermEmulator::Scrollback::pushLine(int cols, const VTermScreenCell *src, b
     memcpy(line, src, sizeof(VTermScreenCell)*cols);
     lines.push_back({std::unique_ptr<const VTermScreenCell[]>(line), cols, continuation});
 
-    if (isFollowingTerminal)
+    if (following)
         offset = numLines();
+
+    return !overflowed;
 }
 
 void VTermEmulator::Scrollback::incrementOffset(int count)
@@ -566,9 +603,19 @@ void VTermEmulator::Scrollback::incrementOffset(int count)
         offset = min(offset + count, numLines());
 }
 
+void VTermEmulator::Scrollback::setOffset(int newOffset)
+{
+    offset = min(max(0, newOffset), numLines());
+}
+
 void VTermEmulator::Scrollback::followTerminal()
 {
     offset = numLines();
+}
+
+bool VTermEmulator::Scrollback::isFollowingTerminal() const
+{
+    return offset == numLines();
 }
 
 int VTermEmulator::Scrollback::getVisibleScrollLines(int terminalHeight) const

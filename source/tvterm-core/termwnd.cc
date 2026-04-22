@@ -1,5 +1,6 @@
 #define Uses_TFrame
 #define Uses_TEvent
+#define Uses_TScrollBar
 #define Uses_TStaticText
 #include <tvision/tv.h>
 
@@ -28,7 +29,16 @@ BasicTerminalWindow::BasicTerminalWindow( const TRect &bounds,
     options |= ofTileable;
     eventMask |= evBroadcast;
     setState(sfShadow, False);
-    view = new TerminalView(getExtent().grow(-1, -1), termCtrl, aConsts);
+
+    TRect r;
+
+    r = getExtent().grow(0, -1);
+    r.a.x = r.b.x - 1;
+    TScrollBar *scrollBar = new TScrollBar(r);
+    insert(scrollBar);
+
+    r = getExtent().grow(-1, -1);
+    view = new TerminalView(r, termCtrl, aConsts, scrollBar);
     insert(view);
 }
 

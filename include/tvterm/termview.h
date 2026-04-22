@@ -6,6 +6,7 @@
 #include <tvision/tv.h>
 
 struct MouseEventType;
+class TScrollBar;
 
 namespace tvterm
 {
@@ -18,12 +19,15 @@ struct TVTermConstants;
 class TerminalView : public TView
 {
     const TVTermConstants &consts;
+    TScrollBar *scrollBar {nullptr};
     bool ownerBufferChanged {false};
 
     void handleMouse(ushort what, MouseEventType mouse) noexcept;
     void updateCursor(TerminalState &state) noexcept;
+    void updateScrollBar(TerminalState &state) noexcept;
     void updateDisplay(TerminalSurface &surface) noexcept;
     bool canReuseOwnerBuffer() noexcept;
+    TPoint getCursorDisplayedPos(TerminalState &state) noexcept;
 
 public:
 
@@ -31,10 +35,12 @@ public:
 
     // Takes ownership over 'termCtrl'.
     // The lifetime of 'consts' must exceed that of 'this'.
+    // 'scrollBar' is a non-owning reference.
     TerminalView( const TRect &bounds, TerminalController &termCtrl,
-                  const TVTermConstants &consts ) noexcept;
+                  const TVTermConstants &consts, TScrollBar *scrollBar ) noexcept;
     ~TerminalView();
 
+    void shutDown() override;
     void changeBounds(const TRect& bounds) override;
     void setState(ushort aState, bool enable) override;
     void handleEvent(TEvent &ev) override;
