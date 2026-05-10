@@ -126,6 +126,7 @@ inline std::ostream &operator<<(std::ostream &os, const VTermProp &a)
         case VTERM_PROP_CURSORSHAPE: s = "VTERM_PROP_CURSORSHAPE"; break;
         case VTERM_PROP_MOUSE: s = "VTERM_PROP_MOUSE"; break;
         case VTERM_N_PROPS: s = "VTERM_N_PROPS"; break;
+        case VTERM_PROP_FOCUSREPORT: s = "VTERM_PROP_FOCUSREPORT"; break;
     }
     return os << s;
 }
