@@ -54,7 +54,7 @@ This project is still WIP. Some features it may achieve at some point are:
 - [x] 24-bit color support.
 - [x] Windows support.
 - [x] Scrollback.
-- [ ] Text selection.
+- [x] Text selection.
 - [ ] Find text.
 - [ ] Send signal to child process.
 - [ ] Text reflow on resize.

@@ -19,6 +19,7 @@ struct TerminalUpdatedMsg;
 class BasicTerminalWindow : public TWindow
 {
     const TVTermConstants &consts;
+    TCommandSet focusedCmds;
     TerminalView *view {nullptr};
     size_t titleCapacity {0};
     GrowArray termTitle;

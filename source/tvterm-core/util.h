@@ -48,4 +48,34 @@ inline constexpr uint32_t utf8To32(TStringView s)
     return 0;
 }
 
+inline constexpr size_t utf32To8(uint32_t u32, char u8[4]) noexcept
+{
+    if (u32 <= 0x007F)
+    {
+        u8[0] = u32;
+        return 1;
+    }
+    else if (u32 <= 0x07FF)
+    {
+        u8[0] = ((u32 >> 6)  & 0b00011111) | 0b11000000;
+        u8[1] = ( u32        & 0b00111111) | 0b10000000;
+        return 2;
+    }
+    else if (u32 <= 0xFFFF)
+    {
+        u8[0] = ((u32 >> 12) & 0b00001111) | 0b11100000;
+        u8[1] = ((u32 >> 6)  & 0b00111111) | 0b10000000;
+        u8[2] = ( u32        & 0b00111111) | 0b10000000;
+        return 3;
+    }
+    else
+    {
+        u8[0] = ((u32 >> 18) & 0b00000111) | 0b11110000;
+        u8[1] = ((u32 >> 12) & 0b00111111) | 0b10000000;
+        u8[2] = ((u32 >> 6)  & 0b00111111) | 0b10000000;
+        u8[3] = ( u32        & 0b00111111) | 0b10000000;
+        return 4;
+    }
+}
+
 #endif // TVTERM_UTIL_H

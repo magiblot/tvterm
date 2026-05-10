@@ -40,6 +40,10 @@ BasicTerminalWindow::BasicTerminalWindow( const TRect &bounds,
     r = getExtent().grow(-1, -1);
     view = new TerminalView(r, termCtrl, aConsts, scrollBar);
     insert(view);
+
+    for (ushort cmd : consts.focusedCmds())
+        focusedCmds += cmd;
+    focusedCmds += cmPaste;
 }
 
 void BasicTerminalWindow::shutDown()
@@ -145,13 +149,7 @@ void BasicTerminalWindow::setState(ushort aState, Boolean enable)
 {
     TWindow::setState(aState, enable);
     if (aState == sfActive)
-    {
-        for (ushort cmd : consts.focusedCmds())
-            if (enable)
-                enableCommand(cmd);
-            else
-                disableCommand(cmd);
-    }
+        setCmdState(focusedCmds, enable);
 }
 
 ushort BasicTerminalWindow::execute()

@@ -69,9 +69,9 @@ inline std::ostream& DebugCout::operator<<(const T &t)
 namespace tvterm
 {
 
-inline std::ostream &operator<<(std::ostream &os, const TerminalSurface::RowDamage &r)
+inline std::ostream &operator<<(std::ostream &os, const RowRange &r)
 {
-    return os << "{" << r.begin << ", " << r.end << "}";
+    return os << "{" << r.start << ", " << r.end << "}";
 }
 
 } // namespace tvterm

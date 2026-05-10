@@ -22,12 +22,22 @@ class TerminalView : public TView
     TScrollBar *scrollBar {nullptr};
     bool ownerBufferChanged {false};
 
+    SelectionRange selection {};
+    SelectionRange prevSelection {};
+    bool inSelectionMode {false};
+
     void handleMouse(ushort what, MouseEventType mouse) noexcept;
+    void updateHelpContext() noexcept;
     void updateCursor(TerminalState &state) noexcept;
     void updateScrollBar(TerminalState &state) noexcept;
-    void updateDisplay(TerminalSurface &surface) noexcept;
+    void updateDisplay(TerminalState &state) noexcept;
     bool canReuseOwnerBuffer() noexcept;
     TPoint getCursorDisplayedPos(TerminalState &state) noexcept;
+
+    void startSelection(SelectionAnchor pos = {}) noexcept;
+    void extendSelection(SelectionAnchor pos) noexcept;
+    void cancelSelection() noexcept;
+    void copySelection() noexcept;
 
 public:
 

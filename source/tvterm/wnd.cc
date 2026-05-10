@@ -8,9 +8,13 @@ const tvterm::TVTermConstants TerminalWindow::appConsts =
 {
     cmCheckTerminalUpdates,
     cmTerminalUpdated,
+    cmCopySelection,
+    cmCancelSelection,
     cmGrabInput,
     cmReleaseInput,
+    cmStartSelection,
     hcInputGrabbed,
+    hcSelecting,
 };
 
 void TerminalWindow::handleEvent(TEvent &ev)

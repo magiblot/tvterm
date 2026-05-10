@@ -1,6 +1,7 @@
 #define Uses_TText
 #define Uses_TKeys
 #define Uses_TEvent
+#define Uses_TClipboard
 #include <tvision/tv.h>
 
 #include "util.h"
@@ -221,12 +222,12 @@ namespace vtermemu
     }
 
     static void drawLine( TerminalSurface &surface, VTermScreen *vtScreen,
-                          int y, int rowIndex, int begin, int end )
+                          int y, int rowIndex, int start, int end )
     // Pre: the area must be within bounds.
     {
-        dout << "drawLine(" << y << ", " << begin << ", " << end << ")" << std::endl;
+        dout << "drawLine(" << y << ", " << start << ", " << end << ")" << std::endl;
         TSpan<TScreenCell> cells(&surface.at(y, 0), surface.size.x);
-        for (int x = begin; x < end; ++x)
+        for (int x = start; x < end; ++x)
         {
             VTermScreenCell cell;
             if (vterm_screen_get_cell(vtScreen, {rowIndex, x}, &cell))
@@ -234,7 +235,7 @@ namespace vtermemu
             else
                 cells[x] = {};
         }
-        surface.addDamageAtRow(y, begin, end);
+        surface.addDamageAtRow(y, start, end);
     }
 
 } // namespace vtermemu
@@ -336,6 +337,10 @@ void VTermEmulator::handleEvent(const TerminalEvent &event) noexcept
             scrollback.setOffset(event.scrollBackOffsetChange.offset);
             break;
 
+        case TerminalEventType::CopySelection:
+            copySelection(event.copySelection.selection);
+            break;
+
         default:
             break;
     }
@@ -373,6 +378,8 @@ void VTermEmulator::updateState(TerminalState &state) noexcept
         // be confused with the client application's content.
         state.scrollbackEnabled = !localState.altScreenEnabled;
     }
+
+    state.mouseEnabled = localState.mouseEnabled;
 }
 
 TPoint VTermEmulator::getSize() noexcept
@@ -435,11 +442,11 @@ void VTermEmulator::updateSurface(TerminalSurface &surface) noexcept
         int rowIndex = y - visibleScrollLines;
 
         auto &damage = damageByRow[rowIndex];
-        int begin = needsRedraw ? 0 : max(damage.begin, 0);
+        int start = needsRedraw ? 0 : max(damage.start, 0);
         int end = needsRedraw ? size.x : min(damage.end, size.x);
 
-        if (begin < end)
-            drawLine(surface, vtScreen, y, rowIndex, begin, end);
+        if (start < end)
+            drawLine(surface, vtScreen, y, rowIndex, start, end);
 
         damage = {};
     }
@@ -457,7 +464,7 @@ int VTermEmulator::damage(VTermRect rect)
     for (int y = rect.start_row; y < rect.end_row; ++y)
     {
         auto &damage = damageByRow[y];
-        damage.begin = min(rect.start_col, damage.begin);
+        damage.start = min(rect.start_col, damage.start);
         damage.end = max(rect.end_col, damage.end);
     }
     return true;
@@ -559,6 +566,114 @@ void VTermEmulator::drawScrollbackLine(TerminalSurface &surface, int y) noexcept
             convCell(rowCells, x, defCell);
     }
     surface.addDamageAtRow(y, 0, rowCells.size());
+}
+
+void VTermEmulator::copySelection(SelectionRange selection) noexcept
+{
+    auto start = min(selection.start, selection.end);
+    auto end = max(selection.start, selection.end);
+
+    TPoint termSize = getSize();
+    int maxY = scrollback.numLines() + termSize.y;
+
+    int startY = max(0, start.y);
+    int endY = min(end.y + 1, maxY);
+
+    GrowArray text;
+    int padding = 0;
+
+    for (int y = startY; y < endY; ++y)
+    {
+        int startX = (y == start.y) ? max(0, start.x) : 0;
+        int endX = (y == end.y) ? end.x : INT_MAX;
+
+        if (y < scrollback.numLines())
+            extractScrollbackLineText(y, startX, endX, text, padding);
+        else
+            extractTerminalLineText(y - scrollback.numLines(), startX, endX, text, padding);
+    }
+
+    TClipboard::setText({text.data(), text.size()});
+}
+
+static void extractCellText(const VTermScreenCell &cell, GrowArray &text, int &padding) noexcept
+{
+    // Erased cells will be handled as spaces if followed by text.
+    if (cell.chars[0] == 0)
+        padding++;
+    // Ignore gaps behind double-width chars.
+    else if (cell.chars[0] != (uint32_t) -1)
+    {
+        while (padding--)
+            text.push(" ", 1);
+        padding = 0;
+
+        size_t length = 0;
+        while (cell.chars[length] && length < VTERM_MAX_CHARS_PER_CELL)
+            ++length;
+        for (size_t i = 0; i < length; ++i)
+        {
+            char utf8[4];
+            size_t utf8len = utf32To8(cell.chars[i], utf8);
+            text.push(utf8, utf8len);
+        }
+    }
+}
+
+void VTermEmulator::extractScrollbackLineText(int y, int startX, int endX, GrowArray &text, int &padding) noexcept
+// Pre: 0 <= y < scrollback.numLines()
+{
+    auto &line = scrollback.lines[y];
+    endX = min(endX, line.cols);
+
+    if (startX < line.cols && endX > 0)
+        for (int x = startX; x < endX && x < line.cols; ++x)
+            extractCellText(line.cells.get()[x], text, padding);
+
+    if (endX == line.cols)
+    {
+        bool addNewline = false;
+        if (y < scrollback.numLines() - 1)
+            addNewline = !scrollback.lines[y + 1].continuation;
+        else if (getSize().y > 0)
+        {
+            const VTermLineInfo *nextLineInfo = vterm_state_get_lineinfo(vtState, 0);
+            addNewline = !nextLineInfo->continuation;
+        }
+
+        if (addNewline)
+        {
+            text.push("\n", 1);
+            padding = 0;
+        }
+    }
+}
+
+void VTermEmulator::extractTerminalLineText(int y, int startX, int endX, GrowArray &text, int &padding) noexcept
+// Pre: 0 <= y < getSize().y
+{
+    TPoint termSize = getSize();
+    endX = min(endX, termSize.x);
+
+    if (startX < termSize.x && endX > 0)
+    {
+        for (int x = startX; x < endX && x < termSize.x; ++x)
+        {
+            VTermScreenCell cell;
+            if (vterm_screen_get_cell(vtScreen, {y, x}, &cell))
+                extractCellText(cell, text, padding);
+        }
+    }
+
+    if (endX == termSize.x && y < termSize.y - 1)
+    {
+        const VTermLineInfo *nextLineInfo = vterm_state_get_lineinfo(vtState, y + 1);
+        if (!nextLineInfo->continuation)
+        {
+            text.push("\n", 1);
+            padding = 0;
+        }
+    }
 }
 
 inline VTermScreenCell VTermEmulator::getDefaultCell() const

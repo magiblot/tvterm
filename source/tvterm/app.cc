@@ -49,6 +49,8 @@ TVTermApp::TVTermApp() :
     disableCommands(tileCmds);
     for (ushort cmd : TerminalWindow::appConsts.focusedCmds())
         disableCommand(cmd);
+    disableCommand(cmPaste);
+
     newTerm();
 }
 
@@ -64,6 +66,10 @@ TStatusLine *TVTermApp::initStatusLine(TRect r)
             *new TStatusItem("~Esc~ Cancel", kbNoKey, 0) +
         *new TStatusDef(hcInputGrabbed, hcInputGrabbed) +
             *new TStatusItem("~Alt-End~ Release Input", kbAltEnd, cmReleaseInput) +
+        *new TStatusDef(hcSelecting, hcSelecting) +
+            *new TStatusItem("~Click & Drag~ Select Text", kbNoKey, 0) +
+            *new TStatusItem("~Ctrl-C~ Copy Selection", kbCtrlC, cmCopySelection) +
+            *new TStatusItem("~Esc~ Cancel", kbEsc, cmCancelSelection) +
         *new TStatusDef(hcMenu, hcMenu) +
             *new TStatusItem("~Esc~ Close Menu", kbNoKey, 0) +
         *new TStatusDef(0, 0xFFFF) +
@@ -155,14 +161,17 @@ void TVTermApp::openMenu()
         newLine() +
         *new TMenuItem("Next Term", cmNext, kbTab, hcNoContext, "~Tab~") +
         *new TMenuItem("Previous Term", cmPrev, kbShiftTab, hcNoContext, "~Shift-Tab~") +
-        *new TMenuItem("Tile (Columns First)", cmTileCols, 'V', hcNoContext, "~V~") +
-        *new TMenuItem("Tile (Rows First)", cmTileRows, 'H', hcNoContext, "~H~") +
         *new TMenuItem("Resize/Move", cmResize, 'R', hcNoContext, "~R~") +
         *new TMenuItem("Maximize/Restore", cmZoom, 'F', hcNoContext, "~F~") +
         newLine() +
+        *new TMenuItem("Select Text", cmStartSelection, 'S', hcNoContext, "~S~") +
+        *new TMenuItem("Paste", cmPaste, 'P', hcNoContext, "~P~") +
+        newLine() +
         ( *new TSubMenu("~M~ore...", kbNoKey, hcMenu) +
-            *new TMenuItem("~C~hange working dir...", cmChangeDir, kbNoKey) +
+            *new TMenuItem("Change working ~d~ir...", cmChangeDir, kbNoKey) +
             newLine() +
+            *new TMenuItem("Tile (~C~olumns First)", cmTileCols, kbNoKey) +
+            *new TMenuItem("Tile (~R~ows First)", cmTileRows, kbNoKey) +
             *new TMenuItem("C~a~scade", cmCascade, kbNoKey) +
             *new TMenuItem("~G~rab Input", cmGrabInput, kbNoKey)
         ) +

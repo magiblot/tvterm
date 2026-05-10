@@ -85,7 +85,7 @@ private:
     struct VTermScreen *vtScreen;
     Writer &clientDataWriter;
     // Keeps track of the screen regions that were updated in VTerm.
-    std::vector<TerminalSurface::RowDamage> damageByRow;
+    std::vector<RowRange> damageByRow;
     GrowArray strFragBuf;
     LocalState localState;
     Scrollback scrollback;
@@ -108,6 +108,9 @@ private:
     int sb_pushline4(int cols, const VTermScreenCell *cells, bool continuation);
 
     VTermScreenCell getDefaultCell() const;
+    void copySelection(SelectionRange selection) noexcept;
+    void extractScrollbackLineText(int y, int startX, int endX, GrowArray &text, int &padding) noexcept;
+    void extractTerminalLineText(int y, int startX, int endX, GrowArray &text, int &padding) noexcept;
 };
 
 } // namespace tvterm

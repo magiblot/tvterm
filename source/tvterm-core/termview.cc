@@ -1,10 +1,12 @@
 #include <tvterm/termview.h>
 #include <tvterm/termctrl.h>
 #include <tvterm/consts.h>
+#include "util.h"
 
 #define Uses_TKeys
 #define Uses_TEvent
 #define Uses_TScrollBar
+#define Uses_TClipboard
 #include <tvision/tv.h>
 
 namespace tvterm
@@ -68,6 +70,30 @@ void TerminalView::handleEvent(TEvent &ev)
 
     switch (ev.what)
     {
+        case evCommand:
+            if (ev.message.command == consts.cmStartSelection)
+            {
+                startSelection();
+                helpCtx = consts.hcSelecting;
+                clearEvent(ev);
+            }
+            else if (ev.message.command == consts.cmCopySelection)
+            {
+                copySelection();
+                clearEvent(ev);
+            }
+            else if (ev.message.command == consts.cmCancelSelection)
+            {
+                cancelSelection();
+                clearEvent(ev);
+            }
+            else if (ev.message.command == cmPaste)
+            {
+                TClipboard::requestText();
+                clearEvent(ev);
+            }
+            break;
+
         case evBroadcast:
             if ( ev.message.command == consts.cmCheckTerminalUpdates &&
                  termCtrl.stateHasBeenUpdated() )
@@ -91,12 +117,13 @@ void TerminalView::handleEvent(TEvent &ev)
             termEvent.type = TerminalEventType::KeyDown;
             termEvent.keyDown = ev.keyDown;
             termCtrl.sendEvent(termEvent);
-
             clearEvent(ev);
             break;
         }
 
         case evMouseDown:
+            // Use a loop so that we can keep handling mouse events even if the
+            // mouse is dragged out of the window.
             do {
                 handleMouse(ev.what, ev.mouse);
             } while (mouseEvent(ev, evMouse));
@@ -117,24 +144,54 @@ void TerminalView::handleEvent(TEvent &ev)
 
 void TerminalView::handleMouse(ushort what, MouseEventType mouse) noexcept
 {
-    mouse.where = makeLocal(mouse.where);
+    TPoint absPos = makeLocal(mouse.where);
+    bool clientIsUsingMouse;
+    termCtrl.lockState([&] (auto &state) {
+        absPos.y += state.scrollbackOffset;
+        clientIsUsingMouse = state.mouseEnabled;
+    });
 
-    TerminalEvent termEvent;
-    termEvent.type = TerminalEventType::Mouse;
-    termEvent.mouse = {what, mouse};
-    termCtrl.sendEvent(termEvent);
+    // Left click: start selection.
+    if ( (inSelectionMode || (!inSelectionMode && !clientIsUsingMouse)) &&
+         what == evMouseDown && (mouse.buttons & mbLeftButton) )
+        startSelection(absPos);
+    // Mouse drag: extend selection.
+    else if (inSelectionMode && what == evMouseMove && (mouse.buttons & mbLeftButton))
+        extendSelection(absPos);
+    // Empty selection: stop selecting.
+    else if (what == evMouseUp && selection.empty())
+        cancelSelection();
+    else
+    {
+        // Pass mouse event to terminal emulator.
+        TerminalEvent termEvent;
+        termEvent.type = TerminalEventType::Mouse;
+        termEvent.mouse = {what, mouse};
+        termCtrl.sendEvent(termEvent);
+    }
 }
 
 void TerminalView::draw()
 {
+    updateHelpContext();
     termCtrl.lockState([&] (auto &state) {
         updateCursor(state);
         updateScrollBar(state);
-        updateDisplay(state.surface);
+        updateDisplay(state);
 
         TerminalUpdatedMsg upd {*this, state};
         message(owner, evCommand, consts.cmTerminalUpdated, &upd);
     });
+}
+
+void TerminalView::updateHelpContext() noexcept
+{
+    // Only show the corresponding help context when something is actually
+    // selected or if the help context was forcefully set.
+    if (inSelectionMode && (!selection.empty() || helpCtx == consts.hcSelecting))
+        helpCtx = consts.hcSelecting;
+    else
+        helpCtx = hcNoContext;
 }
 
 void TerminalView::updateCursor(TerminalState &state) noexcept
@@ -169,33 +226,67 @@ void TerminalView::updateScrollBar(TerminalState &state) noexcept
     }
 }
 
-static TerminalSurface::RowDamage rangeToCopy(int y, const TRect &r, const TerminalSurface &surface, bool reuseBuffer)
+static RowRange rangeToCopy(int y, int cols, const TerminalSurface &surface, bool reuseBuffer)
 {
     auto &damage = surface.damageAtRow(y);
     if (reuseBuffer)
         return {
-            max(r.a.x, damage.begin),
-            min(r.b.x, damage.end),
+            max(damage.start, 0),
+            min(damage.end, cols),
         };
     else
-        return {r.a.x, r.b.x};
+        return {0, cols};
 }
 
-void TerminalView::updateDisplay(TerminalSurface &surface) noexcept
+static void drawSelection(TScreenCell *lineBuffer, RowRange range) noexcept
 {
-    bool reuseBuffer = canReuseOwnerBuffer();
-    TRect r = getExtent().intersect({{0, 0}, surface.size});
-    if (0 <= r.a.x && r.a.x < r.b.x && 0 <= r.a.y && r.a.y < r.b.y)
+    for (int x = range.start; x < range.end; ++x)
     {
-        for (int y = r.a.y; y < r.b.y; ++y)
-        {
-            auto c = rangeToCopy(y, r, surface, reuseBuffer);
-            writeLine(c.begin, y, c.end - c.begin, 1, &surface.at(y, c.begin));
-        }
-        surface.clearDamage();
-        // We don't need to draw the area that is not filled by the surface.
-        // It will be blank.
+        auto attr = ::getAttr(lineBuffer[x]);
+        attr = ::reverseAttribute(attr);
+        ::setAttr(lineBuffer[x], attr);
     }
+}
+
+void TerminalView::updateDisplay(TerminalState &state) noexcept
+{
+    auto &surface = state.surface;
+    bool reuseBuffer = canReuseOwnerBuffer();
+
+    TPoint drawableAreaSize = {
+        min(size.x, surface.size.x),
+        min(size.y, surface.size.y),
+    };
+
+    TScreenCell *lineBuffer = new TScreenCell[drawableAreaSize.x];
+    for (int y = 0; y < drawableAreaSize.y; ++y)
+    {
+        RowRange range = rangeToCopy(y, drawableAreaSize.x, surface, reuseBuffer);
+
+        // 0 <= absY < (scrollbackOffset + drawableAreaSize.y)
+        int absY = y + state.scrollbackOffset;
+        RowRange selectionInRow = selection.intersectRow(absY, drawableAreaSize.x);
+        RowRange prevSelectionInRow = prevSelection.intersectRow(absY, drawableAreaSize.x);
+
+        // Expand range if selection changed and this row is affected.
+        if (selectionInRow != prevSelectionInRow)
+        {
+            range.start = min(min(range.start, selectionInRow.start), prevSelectionInRow.start);
+            range.end = max(max(range.end, selectionInRow.end), prevSelectionInRow.end);
+        }
+
+        if (range.size() > 0)
+        {
+            memcpy(&lineBuffer[range.start], &surface.at(y, range.start), sizeof(TScreenCell) * range.size());
+            drawSelection(lineBuffer, range.intersect(selectionInRow));
+            writeLine(range.start, y, range.size(), 1, &lineBuffer[range.start]);
+        }
+    }
+
+    surface.clearDamage();
+    delete[] lineBuffer;
+
+    prevSelection = selection;
 }
 
 bool TerminalView::canReuseOwnerBuffer() noexcept
@@ -214,6 +305,38 @@ TPoint TerminalView::getCursorDisplayedPos(TerminalState &state) noexcept
     if (state.scrollbackEnabled)
         cursorPos.y += state.scrollbackLimit - state.scrollbackOffset;
     return cursorPos;
+}
+
+void TerminalView::startSelection(SelectionAnchor pos) noexcept
+{
+    selection.start = pos;
+    selection.end = pos;
+    inSelectionMode = true;
+}
+
+void TerminalView::extendSelection(SelectionAnchor pos) noexcept
+{
+    selection.end = pos;
+    drawView();
+}
+
+void TerminalView::cancelSelection() noexcept
+{
+    selection = {};
+    inSelectionMode = false;
+    drawView();
+}
+
+void TerminalView::copySelection() noexcept
+{
+    if (!selection.empty())
+    {
+        TerminalEvent termEvent;
+        termEvent.type = TerminalEventType::CopySelection;
+        termEvent.copySelection = {selection};
+        termCtrl.sendEvent(termEvent);
+    }
+    cancelSelection();
 }
 
 } // namespace tvterm
