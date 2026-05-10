@@ -5,6 +5,8 @@
 #define Uses_TGroup
 #include <tvision/tv.h>
 
+#include <tvterm/termemu.h>
+
 struct MouseEventType;
 class TScrollBar;
 
@@ -12,8 +14,6 @@ namespace tvterm
 {
 
 class TerminalController;
-class TerminalSurface;
-struct TerminalState;
 struct TVTermConstants;
 
 class TerminalView : public TView
