@@ -70,6 +70,7 @@ TStatusLine *TVTermApp::initStatusLine(TRect r)
             *new TStatusItem("~Click & Drag~ Select Text", kbNoKey, 0) +
             *new TStatusItem("~Ctrl-C~ Copy Selection", kbCtrlC, cmCopySelection) +
             *new TStatusItem("~Esc~ Cancel", kbEsc, cmCancelSelection) +
+            *new TStatusItem(0 , kbCtrlB, cmMenu) +
         *new TStatusDef(hcMenu, hcMenu) +
             *new TStatusItem("~Esc~ Close Menu", kbNoKey, 0) +
         *new TStatusDef(0, 0xFFFF) +
