@@ -15,7 +15,7 @@ set(TBL_FILES_HEADERS)
 foreach(file ${TBL_FILES})
     get_filename_component(basename ${file} NAME_WE)
     set(tname encoding/${basename}.inc)
-    add_custom_command(OUTPUT
+    add_custom_command(
         COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/encoding/
         COMMAND ${PERL_EXECUTABLE} -CSD ${VTERM_DIR}/tbl2inc_c.pl ${file} > ${CMAKE_CURRENT_BINARY_DIR}/${tname}
         COMMENT "Generating ${tname}"
