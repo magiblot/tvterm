@@ -159,7 +159,7 @@ void TerminalView::handleMouse(ushort what, MouseEventType mouse) noexcept
     else if (inSelectionMode && what == evMouseMove && (mouse.buttons & mbLeftButton))
         extendSelection(absPos);
     // Empty selection: stop selecting.
-    else if (what == evMouseUp && selection.empty())
+    else if (inSelectionMode && what == evMouseUp && selection.empty())
         cancelSelection();
     else
     {
