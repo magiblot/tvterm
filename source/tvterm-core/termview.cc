@@ -144,7 +144,9 @@ void TerminalView::handleEvent(TEvent &ev)
 
 void TerminalView::handleMouse(ushort what, MouseEventType mouse) noexcept
 {
-    TPoint absPos = makeLocal(mouse.where);
+    mouse.where = makeLocal(mouse.where);
+
+    TPoint absPos = mouse.where;
     bool clientIsUsingMouse;
     termCtrl.lockState([&] (auto &state) {
         absPos.y += state.scrollbackOffset;
