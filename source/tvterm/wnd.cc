@@ -42,27 +42,41 @@ void TerminalWindow::sizeLimits(TPoint &min, TPoint &max)
     }
 }
 
-void TerminalWindow::zoom()
+void TerminalWindow::changeBounds(const TRect &bounds)
 {
-    TPoint minSize, maxSize;
-    sizeLimits(minSize, maxSize);
-    if (size != maxSize)
+    TRect maxBounds = getMaxBounds();
+    if (bounds == maxBounds)
     {
-        zoomRect = getBounds();
-
         // A maximized terminal shows just the title bar and cannot be dragged.
-        TRect r(0, 0, maxSize.x, maxSize.y);
-        r.move(-1, 0);
         growMode = gfGrowHiX | gfGrowHiY;
         flags &= ~(wfMove | wfGrow);
-
-        locate(r);
     }
     else
     {
         growMode = gfGrowAll | gfGrowRel;
         flags |= wfMove | wfGrow;
-
-        locate(zoomRect);
     }
+    Super::changeBounds(bounds);
+}
+
+void TerminalWindow::zoom()
+{
+    TRect bounds = getBounds();
+    TRect maxBounds = getMaxBounds();
+    if (bounds != maxBounds)
+    {
+        zoomRect = bounds;
+        locate(maxBounds);
+    }
+    else
+        locate(zoomRect);
+}
+
+TRect TerminalWindow::getMaxBounds()
+{
+    TPoint minSize, maxSize;
+    sizeLimits(minSize, maxSize);
+    TRect r(0, 0, maxSize.x, maxSize.y);
+    r.move(-1, 0);
+    return r;
 }

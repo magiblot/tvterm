@@ -16,7 +16,12 @@ public:
 
     void handleEvent(TEvent &ev) override;
     void sizeLimits(TPoint &min, TPoint &max) override;
+    void changeBounds(const TRect &bounds) override;
     void zoom() override;
+
+private:
+
+    TRect getMaxBounds();
 };
 
 inline TerminalWindow::TerminalWindow( const TRect &bounds,
