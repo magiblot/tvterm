@@ -6,6 +6,8 @@
 
 class TerminalWindow : public tvterm::BasicTerminalWindow
 {
+    using Super = tvterm::BasicTerminalWindow;
+
 public:
 
     static const tvterm::TVTermConstants appConsts;
@@ -14,12 +16,7 @@ public:
 
     void handleEvent(TEvent &ev) override;
     void sizeLimits(TPoint &min, TPoint &max) override;
-
-private:
-
-    using Super = tvterm::BasicTerminalWindow;
-
-    void zoom() noexcept;
+    void zoom() override;
 };
 
 inline TerminalWindow::TerminalWindow( const TRect &bounds,

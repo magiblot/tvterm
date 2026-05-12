@@ -22,12 +22,6 @@ void TerminalWindow::handleEvent(TEvent &ev)
     if ( ev.what == evBroadcast &&
          ev.message.command == cmGetOpenTerms && !isDisconnected() )
         *(size_t *) ev.message.infoPtr += 1;
-    else if( ev.what == evCommand && ev.message.command == cmZoom &&
-             (!ev.message.infoPtr || ev.message.infoPtr == this) )
-    {
-        zoom();
-        clearEvent(ev);
-    }
     else if ( ev.what == evKeyDown && isDisconnected() &&
               !(state & (sfDragging | sfModal)) )
     {
@@ -48,7 +42,7 @@ void TerminalWindow::sizeLimits(TPoint &min, TPoint &max)
     }
 }
 
-void TerminalWindow::zoom() noexcept
+void TerminalWindow::zoom()
 {
     TPoint minSize, maxSize;
     sizeLimits(minSize, maxSize);
